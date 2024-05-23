@@ -321,6 +321,13 @@ bool SVFUtil::matchArgs(const SVFInstruction* cs, const SVFFunction* callee)
 {
     if (callee->isVarArg() || ThreadAPI::getThreadAPI()->isTDFork(cs))
         return getSVFCallSite(cs).arg_size() >= callee->arg_size();
-    else
-        return getSVFCallSite(cs).arg_size() == callee->arg_size();
+    else {
+        const std::vector<std::string> &callSignature = 
+            getSVFCallSite(cs).getCallInstruction()->getSignature();
+        const std::vector<std::string> &calleeSignature = callee->getSignature();
+        if (!callSignature.empty() && !calleeSignature.empty())
+            return getSVFCallSite(cs).getCallInstruction()->getSignature() == callee->getSignature();
+        else
+            return getSVFCallSite(cs).arg_size() == callee->arg_size();
+    }
 }

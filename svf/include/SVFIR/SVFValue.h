@@ -321,6 +321,7 @@ private:
     std::vector<const SVFArgument*> allArgs;    /// all formal arguments of this function
     std::vector<std::string> annotations; /// annotations of this function
     SVFBasicBlock *exitBlock;             /// a 'single' basic block having no successors and containing return instruction in a function
+    std::vector<std::string> signature;
 
 protected:
     ///@{ attributes to be set only through Module builders e.g., LLVMModule
@@ -522,6 +523,16 @@ public:
     {
         return loopAndDom->postDominate(bbKey,bbValue);
     }
+
+    inline std::vector<std::string>& getSignature()
+    {
+        return signature;
+    }
+
+    inline const std::vector<std::string>& getSignature() const
+    {
+        return signature;
+    }
 };
 
 class SVFBasicBlock : public SVFValue
@@ -707,6 +718,7 @@ private:
     std::vector<const SVFValue*> args;
     bool varArg;
     const SVFValue* calledVal;
+    std::vector<std::string> signature;
 
 protected:
     ///@{ attributes to be set only through Module builders e.g., LLVMModule
@@ -767,6 +779,12 @@ public:
     inline  const SVFFunction* getCaller() const
     {
         return getFunction();
+    }
+    inline std::vector<std::string>& getSignature() {
+        return signature;
+    }
+    inline const std::vector<std::string>& getSignature() const {
+        return signature;
     }
 };
 
@@ -1126,6 +1144,10 @@ public:
         assert(CB && "not a callsite?");
     }
     const SVFInstruction* getInstruction() const
+    {
+        return CB;
+    }
+    const SVFCallInst* getCallInstruction() const
     {
         return CB;
     }
