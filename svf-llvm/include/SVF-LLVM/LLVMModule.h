@@ -381,6 +381,8 @@ private:
     void buildSymbolTable() const;
     void collectExtFunAnnotations(const Module* mod);
     void removeUnusedExtAPIs();
+
+    void parseFunctionSignature(MDNode *metadata, std::vector<std::string> &signature);
 };
 
 } // End namespace SVF

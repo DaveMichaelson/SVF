@@ -29,6 +29,7 @@
 
 #include <queue>
 #include <algorithm>
+#include <regex>
 #include "SVFIR/SVFModule.h"
 #include "Util/SVFUtil.h"
 #include "SVF-LLVM/BasicTypes.h"
@@ -229,6 +230,23 @@ void LLVMModuleSet::createSVFDataStructure()
     }
 }
 
+void LLVMModuleSet::parseFunctionSignature(MDNode *metadata, std::vector<std::string> &signature) {
+    std::string metadataString = 
+        llvm::cast<MDString>(metadata->getOperand(0))->getString().str();
+
+    std::regex regex("CallSignature=\\((.*)\\)->(.*)");
+    std::smatch matches;
+
+    if(std::regex_search(metadataString, matches, regex)) {
+        signature.push_back(matches[2].str());
+        std::stringstream args(matches[1].str());
+        std::string arg;
+        while (getline(args, arg, ',')) {
+            signature.push_back(arg);
+        }
+    }
+}
+
 void LLVMModuleSet::createSVFFunction(const Function* func)
 {
     SVFFunction* svfFunc = new SVFFunction(
@@ -241,6 +259,7 @@ void LLVMModuleSet::createSVFFunction(const Function* func)
     svfModule->addFunctionSet(svfFunc);
     if (ExtFun2Annotations.find(func) != ExtFun2Annotations.end())
         svfFunc->setAnnotations(ExtFun2Annotations[func]);
+    parseFunctionSignature(func->getMetadata("annotation"), svfFunc->getSignature());
     addFunctionMap(func, svfFunc);
 
     for (const Argument& arg : func->args())
@@ -281,6 +300,8 @@ void LLVMModuleSet::createSVFFunction(const Function* func)
                         getSVFType(call->getType()), svfBB,
                         call->getFunctionType()->isVarArg(),
                         inst.isTerminator());
+                parseFunctionSignature(func->getMetadata("user.metadata"), 
+                    SVFUtil::dyn_cast<SVFVirtualCallInst>(svfInst)->getSignature());
             }
             else
             {
