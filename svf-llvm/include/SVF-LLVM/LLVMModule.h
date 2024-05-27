@@ -380,7 +380,7 @@ private:
     void addSVFMain();
 
     void createSVFDataStructure();
-    void createSVFFunction(const Function* func, Map<Function *, std::string> &annotations);
+    void createSVFFunction(const Function* func);
     void initSVFFunction();
     void initSVFBasicBlock(const Function* func);
     void initDomTree(SVFFunction* func, const Function* f);
@@ -393,9 +393,9 @@ private:
     void collectFunAnnotations(const Module* mod, Fun2AnnoMap &Fun2AnnoMap);
     void removeUnusedExtAPIs();
 
-    void functionAnnotations(Module& mod, Map<Function *, std::string> &annotations);
     void parseFunctionSignature(SVFInstruction *call, const CallBase *callBase);
     void parseFunctionSignature(SVFFunction *svfFunc);
+    void parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase* call);
     std::vector<std::string> parseFunctionSignature(std::string metadata);
 };
 

@@ -173,11 +173,9 @@ void LLVMModuleSet::createSVFDataStructure()
     // candidateDefs is the vector for all used defined functions
     // candidateDecls is the vector for all used declared functions
     std::vector<const Function*> candidateDefs, candidateDecls;
-    Map<Function *, std::string> annotations;
 
     for (Module& mod : modules)
     {
-        functionAnnotations(mod, annotations);
         /// Function
         for (Function& func : mod.functions())
         {
@@ -194,11 +192,11 @@ void LLVMModuleSet::createSVFDataStructure()
 
     for (const Function* func: candidateDefs)
     {
-        createSVFFunction(func, annotations);
+        createSVFFunction(func);
     }
     for (const Function* func: candidateDecls)
     {
-        createSVFFunction(func, annotations);
+        createSVFFunction(func);
     }
 
     /// then traverse candidate sets
@@ -233,27 +231,12 @@ void LLVMModuleSet::createSVFDataStructure()
     }
 }
 
-void LLVMModuleSet::functionAnnotations(Module &mod, Map<Function *, std::string> &annotations) {
-    for (Module::global_iterator I = mod.global_begin(), E = mod.global_end();
-            I != E;
-            ++I) {
-        if (I->getName() != "llvm.global.annotations")
-            continue;
-        ConstantArray *CA = SVFUtil::dyn_cast<ConstantArray>(I->getOperand(0));
-        for (auto OI = CA->op_begin(); OI != CA->op_end(); ++OI) {
-            ConstantStruct *CS = SVFUtil::dyn_cast<ConstantStruct>(OI->get());
-            // SVFUtil::outs() << "CS Nops=" << CS->getNumOperands() << "\n";
-            if (CS->getNumOperands() < 2)
-                continue;
-            Function *func = SVFUtil::dyn_cast<Function>(CS->getOperand(0));
-            // SVFUtil::outs() << "getFunc\n";
-            if (!func) 
-                continue;
-            GlobalVariable *AnnotationGL = SVFUtil::dyn_cast<GlobalVariable>(CS->getOperand(1));
-            std::string annotation = SVFUtil::dyn_cast<ConstantDataArray>(AnnotationGL->getInitializer())->getAsCString().str();
-            // SVFUtil::outs() << "Annotation " << func->getName().str() << "=" << annotation << "\n";
-            annotations[func] = annotation;
-        }
+void LLVMModuleSet::parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase *call) {
+    MDNode *metadata = call->getMetadata("user.metadata");
+    if (metadata) {
+        svfCallInstr->setSignature(parseFunctionSignature(
+            llvm::cast<MDString>(
+                metadata->getOperand(0))->getString().str()));
     }
 }
 
@@ -267,35 +250,23 @@ void LLVMModuleSet::parseFunctionSignature(SVFFunction *svfFunc) {
     }
 }
 
-// void LLVMModuleSet::parseFunctionSignature(SVFInstruction *call, const CallBase *callBase) {
-//     llvm::SmallVector<MDNode *> mdNodes;
-//     callBase->getMetadata("user.metadata", mdNodes);
-// }
-
 std::vector<std::string> LLVMModuleSet::parseFunctionSignature(std::string metadata) {
-    // SVFUtil::outs() << "parseFunctionSignature" << metadata << "\n";
     std::regex regex("CallSignature=\\((.*)\\)->(.*)");
     std::smatch matches;
     std::vector<std::string> signature;
 
     if(std::regex_search(metadata, matches, regex)) {
-        // SVFUtil::outs() << "search matches=" << matches.size() << " " << matches[2].str() <<"\n";
         signature.push_back(matches[2].str());
-        // SVFUtil::outs() << "1 match\n";
         std::stringstream args(matches[1].str());
-        // SVFUtil::outs() << "2 match\n";
         std::string arg;
         while (getline(args, arg, ',')) {
-            // SVFUtil::outs() << "parseFunctionSignature getline=" << arg << "\n";
             signature.push_back(arg);
         }
-        // SVFUtil::outs() << "parseFunctionSignature return true\n";
     }
-    // SVFUtil::outs() << "parseFunctionSignature return false\n";
     return signature;
 }
 
-void LLVMModuleSet::createSVFFunction(const Function* func, Map<Function *, std::string> &annotations)
+void LLVMModuleSet::createSVFFunction(const Function* func)
 {
     SVFFunction* svfFunc = new SVFFunction(
         getSVFType(func->getType()),
@@ -310,11 +281,6 @@ void LLVMModuleSet::createSVFFunction(const Function* func, Map<Function *, std:
         svfFunc->setAnnotations(Fun2Annotations[func]);
     }
     parseFunctionSignature(svfFunc);
-    SVFUtil::outs() << func->getName().str() << "=";
-    for (auto s : *svfFunc->getSignature()) {
-        SVFUtil::outs() << s << ", ";
-    }
-    SVFUtil::outs() << "\n";
     addFunctionMap(func, svfFunc);
 
     for (const Argument& arg : func->args())
@@ -351,20 +317,8 @@ void LLVMModuleSet::createSVFFunction(const Function* func, Map<Function *, std:
                         getSVFType(call->getType()), svfBB,
                         call->getFunctionType()->isVarArg(),
                         inst.isTerminator());
-                SVFUtil::outs() << "Pointer:\n";
-                MDNode *metadata = call->getMetadata("user.metadata");
-                auto svfCallInstr = SVFUtil::dyn_cast<SVFCallInst>(svfInst);
-                if (metadata) {
-                    SVFUtil::outs() << "NumOperands=" << metadata->getNumOperands() << "\n";
-                    svfCallInstr->setSignature(parseFunctionSignature(
-                        llvm::cast<MDString>(
-                            metadata->getOperand(0))->getString().str()));
-                    SVFUtil::outs() << "parsefertig\n"; 
-                }
-                for (auto s : *svfCallInstr->getSignature()) {
-                    SVFUtil::outs() << s << ", ";
-                }
-                SVFUtil::outs() << "\n";
+                parseFunctionSignature(SVFUtil::dyn_cast<SVFCallInst>(svfInst), 
+                    call);
             }
             else
             {
