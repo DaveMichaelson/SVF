@@ -524,14 +524,18 @@ public:
         return loopAndDom->postDominate(bbKey,bbValue);
     }
 
-    inline std::vector<std::string>& getSignature()
+    inline std::vector<std::string>* getSignature()
     {
-        return signature;
+        return &signature;
     }
 
-    inline const std::vector<std::string>& getSignature() const
+    inline const std::vector<std::string>* getSignature() const
     {
-        return signature;
+        return &signature;
+    }
+
+    inline void setSignature(std::vector<std::string> signature) {
+        this->signature = signature;
     }
 };
 
@@ -780,11 +784,15 @@ public:
     {
         return getFunction();
     }
-    inline std::vector<std::string>& getSignature() {
-        return signature;
+    inline std::vector<std::string>* getSignature() {
+        return &signature;
     }
-    inline const std::vector<std::string>& getSignature() const {
-        return signature;
+    inline const std::vector<std::string>* getSignature() const {
+        return &signature;
+    }
+
+    inline void setSignature(std::vector<std::string> signature) {
+        this->signature = signature;
     }
 };
 

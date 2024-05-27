@@ -80,6 +80,7 @@ private:
     FunctionSetType ExtFuncsVec;
     /// Record annotations of function in extapi.bc
     Fun2AnnoMap ExtFun2Annotations;
+    Fun2AnnoMap Fun2Annotations;
     /// Global definition to a rep definition map
     GlobalDefToRepMapTy GlobalDefToRepMap;
 
@@ -379,7 +380,7 @@ private:
     void addSVFMain();
 
     void createSVFDataStructure();
-    void createSVFFunction(const Function* func);
+    void createSVFFunction(const Function* func, Map<Function *, std::string> &annotations);
     void initSVFFunction();
     void initSVFBasicBlock(const Function* func);
     void initDomTree(SVFFunction* func, const Function* f);
@@ -389,10 +390,13 @@ private:
     /// Invoke llvm passes to modify module
     void prePassSchedule();
     void buildSymbolTable() const;
-    void collectExtFunAnnotations(const Module* mod);
+    void collectFunAnnotations(const Module* mod, Fun2AnnoMap &Fun2AnnoMap);
     void removeUnusedExtAPIs();
 
-    void parseFunctionSignature(MDNode *metadata, std::vector<std::string> &signature);
+    void functionAnnotations(Module& mod, Map<Function *, std::string> &annotations);
+    void parseFunctionSignature(SVFInstruction *call, const CallBase *callBase);
+    void parseFunctionSignature(SVFFunction *svfFunc);
+    std::vector<std::string> parseFunctionSignature(std::string metadata);
 };
 
 } // End namespace SVF
