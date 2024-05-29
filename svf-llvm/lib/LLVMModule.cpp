@@ -232,11 +232,15 @@ void LLVMModuleSet::createSVFDataStructure()
 }
 
 void LLVMModuleSet::parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase *call) {
-    MDNode *metadata = call->getMetadata("user.metadata");
-    if (metadata) {
-        svfCallInstr->setSignature(parseFunctionSignature(
-            llvm::cast<MDString>(
-                metadata->getOperand(0))->getString().str()));
+    llvm::SmallVector<MDNode *> mdnodes;
+    call->getUserMetadata(mdnodes);
+    for (MDNode * metadata : mdnodes) {
+        std::vector<std::string> signature = parseFunctionSignature(
+            llvm::cast<MDString>(metadata->getOperand(0))->getString().str());
+        if(!signature.empty()) {
+            svfCallInstr->setSignature(signature);
+            return;
+        }
     }
 }
 
@@ -251,7 +255,7 @@ void LLVMModuleSet::parseFunctionSignature(SVFFunction *svfFunc) {
 }
 
 std::vector<std::string> LLVMModuleSet::parseFunctionSignature(std::string metadata) {
-    std::regex regex("CallSignature=\\((.*)\\)->(.*)");
+    std::regex regex("CallSignature=\\((.*)\\)->([^\\0]*)");
     std::smatch matches;
     std::vector<std::string> signature;
 
