@@ -40,6 +40,8 @@ SVFModule::~SVFModule()
         delete c;
     for (const SVFValue* o : OtherValueSet)
         delete o;
+    for (const SVFMetadataType* t : TypeSet)
+        delete t;
     NodeIDAllocator::unset();
     ThreadAPI::destroy();
     ExtAPI::destory();

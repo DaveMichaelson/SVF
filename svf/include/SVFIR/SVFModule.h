@@ -48,6 +48,7 @@ public:
     typedef std::vector<SVFGlobalValue*> AliasSetType;
     typedef std::vector<SVFConstant*> ConstantType;
     typedef std::vector<SVFOtherValue*> OtherValueType;
+    typedef std::vector<const SVFMetadataType*> TypeSetType;
 
     /// Iterators type def
     typedef FunctionSetType::iterator iterator;
@@ -70,6 +71,7 @@ private:
     AliasSetType AliasSet;        ///< The Aliases in the module
     ConstantType ConstantSet;     ///< The ConstantData in the module
     OtherValueType OtherValueSet; ///< All other values in the module
+    TypeSetType TypeSet;
 
     /// Constructors
     SVFModule() = default;
@@ -124,6 +126,10 @@ public:
     inline void addOtherValue(SVFOtherValue* ov)
     {
         OtherValueSet.push_back(ov);
+    }
+    inline void addType(const SVFMetadataType *type) 
+    {
+        TypeSet.push_back(type);
     }
 
     ///@}

@@ -531,6 +531,27 @@ enum AliasResult
     PartialAlias,
 };
 
+class SVFMetadataType {
+    Set<const SVFMetadataType *> superClasses;
+public:
+    void addSuperClass(const SVFMetadataType *superClass) {
+        superClasses.insert(superClass);
+    }
+
+    bool hasSuperClass(const SVFMetadataType *type) const {
+        return superClasses.count(type);
+    }
+};
+
+class ArgType {
+    SVFMetadataType *type;
+    std::vector<const ArgType *> templateTypes;
+    int pointer;
+public:
+    bool isOfType(const ArgType *type);
+};
+
+
 } // End namespace SVF
 
 template <> struct std::hash<SVF::NodePair>

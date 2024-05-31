@@ -62,6 +62,7 @@ public:
     typedef Map<const Type*, SVFType*> LLVMType2SVFTypeMap;
     typedef Map<const Type*, StInfo*> Type2TypeInfoMap;
     typedef Map<const Function*,  std::vector<std::string>> Fun2AnnoMap;
+    typedef Map<std::string, SVFMetadataType *> Name2TypeMap;
 
 private:
     static LLVMModuleSet* llvmModuleSet;
@@ -371,6 +372,7 @@ private:
     StInfo* collectArrayInfo(const ArrayType* T);
     /// Collect simple type (non-aggregate) info
     StInfo* collectSimpleTypeInfo(const Type* T);
+    void collectInheritanceInfo(const Module *mod);
 
     std::vector<const Function*> getLLVMGlobalFunctions(const GlobalVariable* global);
 
@@ -397,6 +399,7 @@ private:
     void parseFunctionSignature(SVFFunction *svfFunc);
     void parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase* call);
     std::vector<std::string> parseFunctionSignature(std::string metadata);
+    void parseClassInfoMetadata(std::string annotation);
 };
 
 } // End namespace SVF

@@ -41,6 +41,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/ADT/SmallVector.h"
 #include "SVF-LLVM/ObjTypeInference.h"
+#include "llvm/Support/JSON.h"
 
 using namespace std;
 using namespace SVF;
@@ -176,6 +177,7 @@ void LLVMModuleSet::createSVFDataStructure()
 
     for (Module& mod : modules)
     {
+        collectInheritanceInfo(&mod);
         /// Function
         for (Function& func : mod.functions())
         {
@@ -876,6 +878,64 @@ void LLVMModuleSet::collectFunAnnotations(const Module* mod, Fun2AnnoMap &fun2An
             std::string annotation = data->getAsString().str();
             if (!annotation.empty())
                 fun2Anno[fun].push_back(annotation);
+        }
+    }
+}
+
+void LLVMModuleSet::parseClassInfoMetadata(std::string annotation) {
+    std::regex regex("ClassInfo=(.*)");
+    std::smatch matches;
+
+    if(!std::regex_search(annotation, matches, regex)) {
+        // signature.push_back(matches[2].str());
+        // std::stringstream args(matches[1].str());
+        // std::string arg;
+        // while (getline(args, arg, ',')) {
+        //     signature.push_back(arg);
+        // }
+        return;
+    }
+
+    llvm::Expected<llvm::json::Value> result = llvm::json::parse(matches[1].str());
+    if (result.takeError())
+        return;
+    llvm::json::Object *o;
+    if (!(o = result->getAsObject()))
+        return;
+    llvm::StringRef className;
+    if (auto s = o->getString("ClassName"))
+        className = s.getValue();
+
+}
+
+void LLVMModuleSet::collectInheritanceInfo(const Module *mod) {
+    GlobalVariable *glob = mod->getGlobalVariable("llvm.global.annotations");
+    if (glob == nullptr || !glob->hasInitializer())
+        return;
+
+    ConstantArray *ca = SVFUtil::dyn_cast<ConstantArray>(glob->getInitializer());
+    if (ca == nullptr)
+        return;
+
+    for (unsigned i = 0; i < ca->getNumOperands(); ++i)
+    {
+        ConstantStruct *structAn = SVFUtil::dyn_cast<ConstantStruct>(ca->getOperand(i));
+        if (structAn == nullptr || structAn->getNumOperands() == 0)
+            continue;
+
+        GlobalVariable *annotateStr = SVFUtil::dyn_cast<GlobalVariable>(structAn->getOperand(1));
+
+        if (annotateStr == nullptr || !annotateStr->hasInitializer())
+        {
+            continue;
+        }
+
+        ConstantDataSequential *data = SVFUtil::dyn_cast<ConstantDataSequential>(annotateStr->getInitializer());
+        if (data && data->isString())
+        {
+            std::string annotation = data->getAsString().str();
+            if (annotation.find("ClassInfo=") != std::string::npos)
+                SVFUtil::outs() << annotation << "\n";
         }
     }
 }
