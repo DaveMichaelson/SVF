@@ -896,7 +896,7 @@ void LLVMModuleSet::parseClassInfoMetadata(llvm::StringRef annotation) {
     //     return;
     // }
 
-    // SVFUtil::outs() << "parseClassInfoMetadata\n";
+    SVFUtil::outs() << "parseClassInfoMetadata\n";
     // SVFUtil::outs() << annotation.str() << "\n";
     std::string annotationWithoutNull = annotation.str();
     annotationWithoutNull.erase(std::find(annotationWithoutNull.begin(), annotationWithoutNull.end(), '\0'), annotationWithoutNull.end());
@@ -935,20 +935,27 @@ void LLVMModuleSet::parseClassInfoMetadata(llvm::StringRef annotation) {
     // SVFUtil::outs() << className << "\n";
     if (type == MetadataName2TypeMap.end())
     {
+        // SVFUtil::outs() << "newType=" << className << "\n";
         type = MetadataName2TypeMap.insert(type, std::make_pair(className, new SVFMetadataType()));
     }
         
-    for (llvm::json::Value *base : baseClasses) {
+    for (auto base : *baseClasses) {
+        // SVFUtil::outs() << "baseClass: ";
         std::string baseName;
-        if (auto s = base->getAsString())
+        if (auto s = base.getAsString())
             baseName = s.value().str();
         else
             continue;
             
         auto baseType = MetadataName2TypeMap.find(baseName);
+        // SVFUtil::outs() << "baseName=" << baseName;
         if (baseType == MetadataName2TypeMap.end())
+        {
+            // SVFUtil::outs() << "new";
             baseType = MetadataName2TypeMap.insert(type, std::make_pair(baseName, new SVFMetadataType()));
-        type.second->addSuperClass(baseType.second);
+        }
+        // SVFUtil::outs() << "\n";
+        type->second->addSuperClass(baseType->second);
     }
 
 }
