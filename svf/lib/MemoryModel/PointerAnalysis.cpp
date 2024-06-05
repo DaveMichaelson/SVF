@@ -42,6 +42,10 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <llvm/IR/TypeFinder.h>
+#include <llvm/IR/Operator.h>
+#include <llvm/IR/InstrTypes.h>
+#include <llvm/IR/Intrinsics.h>
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -375,7 +379,178 @@ void PointerAnalysis::printIndCSTargets()
     }
 }
 
+llvm::Module* get_module()
+{
+    SVFModule* mod = SVF::SVFModule::getSVFModule();
+    assert(mod->getNumLlvmModules() == 1 && "more than one module");
+    return mod->getLlvmModule(0);
+}
 
+void PointerAnalysis::init_compatible_types()
+{
+    llvm::TypeFinder s_types;
+    s_types.run(*get_module(), true);
+
+    bool changed = false;
+
+    do
+    {
+        for (llvm::StructType* ty : s_types)
+        {
+            for (auto it = ty->element_begin(); it != ty->element_end(); ++it)
+            {
+                if (llvm::StructType* sty =
+                        llvm::dyn_cast<llvm::StructType>(*it))
+                {
+                    size_t old_size = compatible_types[sty].size();
+                    compatible_types[sty].insert(ty);
+                    compatible_types[sty].insert(compatible_types[ty].begin(),
+                                                 compatible_types[ty].end());
+                    changed = (old_size != compatible_types[sty].size());
+                }
+            }
+            // Handle a special case where Clang generate two types for one C++
+            // class with a vTable. Clang introduces padding in classes with
+            // vTables. If this class is a base class then Clang dublicates it
+            // in a class with (original name) and without padding (name
+            // suffixed with ".base") and uses the one without padding to embed
+            // it in the child classes.
+            if (ty->hasName() && ty->getName().endswith(".base"))
+            {
+                auto n_ty_name = ty->getName().drop_back(5); // drop ".base"
+                llvm::StructType* n_ty = llvm::StructType::getTypeByName(
+                    get_module()->getContext(), n_ty_name);
+                if (n_ty)
+                {
+                    auto& compat_1 = compatible_types[ty];
+                    auto& compat_2 = compatible_types[n_ty];
+                    size_t c1_size = compat_1.size();
+                    size_t c2_size = compat_2.size();
+                    // create union of both sets
+                    compat_1.insert(compat_2.begin(), compat_2.end());
+                    compat_2.insert(compat_1.begin(), compat_1.end());
+                    changed = changed || (c1_size != compat_1.size() ||
+                                          c2_size != compat_2.size());
+                }
+            }
+        }
+    } while (changed);
+}
+
+void PointerAnalysis::get_atf_from_value(
+    const llvm::Value& value,
+    std::vector<const llvm::Function*>& functions)
+{
+    if (const llvm::Function* fv = llvm::dyn_cast<llvm::Function>(&value))
+    {
+        functions.emplace_back(fv);
+    }
+    else if (const auto* ca = llvm::dyn_cast<llvm::ConstantAggregate>(&value))
+    {
+        get_atf_from_user(*ca, functions);
+    }
+    else if (const auto* bc = llvm::dyn_cast<llvm::BitCastOperator>(&value))
+    {
+        get_atf_from_user(*bc, functions);
+    }
+}
+
+template <typename T> class remove_pointer_
+{
+    template <typename U = T>
+    static auto test(int)
+        -> std::remove_reference<decltype(*std::declval<U>())>;
+    static auto test(...) -> std::remove_cv<T>;
+
+public:
+    using type = typename decltype(test(0))::type;
+};
+
+template <typename T> using remove_pointer = typename remove_pointer_<T>::type;
+
+/**
+ * Dereference any kind of pointer, raw or smart, and return a reference.
+ * While dereferencing, it checks for a null pointer and fails in error case.
+ */
+template <class T> inline remove_pointer<T>& safe_deref(T&& t)
+{
+    assert(t != nullptr && "t is not null");
+    return *t;
+}
+
+template <class T> inline remove_pointer<T>& safe_deref(T&& t)
+{
+    assert(t != nullptr && "t is not null");
+    return *t;
+}
+
+void PointerAnalysis::get_atf_from_user(
+    const llvm::User& user,
+    std::vector<const llvm::Function*>& functions)
+{
+    for (const llvm::Value* value : user.operand_values())
+    {
+        get_atf_from_value(safe_deref(value), functions);
+    }
+}
+
+std::vector<const llvm::Function*>
+PointerAnalysis::get_address_taken_functions()
+{
+   
+    llvm::Module& l_module = *get_module();
+    std::vector<const llvm::Function*> ret;
+    // iterate every instruction
+    for (const auto& func : l_module)
+    {
+        for (const auto& bb : func)
+        {
+            for (const auto& i : bb)
+            {
+                if (llvm::isa<llvm::CallInst>(i))
+                {
+                    continue;
+                }
+                get_atf_from_user(i, ret);
+            }
+        }
+    }
+    // iterate initialized global variables (like vTables)
+    for (const llvm::GlobalVariable& global : l_module.globals())
+    {
+        get_atf_from_user(global, ret);
+    }
+    return ret;
+}
+
+bool is_intrinsic(const llvm::Function& func)
+{
+    if (func.getIntrinsicID() == llvm::Intrinsic::donothing ||
+        func.getIntrinsicID() == llvm::Intrinsic::dbg_addr ||
+        func.getIntrinsicID() == llvm::Intrinsic::dbg_declare ||
+        func.getIntrinsicID() == llvm::Intrinsic::dbg_label ||
+        func.getIntrinsicID() == llvm::Intrinsic::dbg_value)
+    {
+        return true;
+    }
+    return false;
+}
+
+bool is_call_to_intrinsic(const llvm::Instruction& inst)
+{
+    if (const llvm::CallBase* call = SVFUtil::dyn_cast<llvm::CallBase>(&inst))
+    {
+        if (call->isInlineAsm())
+        {
+            return true;
+        }
+        const llvm::Function* func = call->getCalledFunction();
+        if (func == nullptr)
+            return false;
+        return is_intrinsic(*func);
+    }
+    return false;
+}
 
 /*!
  * Resolve indirect calls
@@ -419,6 +594,111 @@ void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& ta
                     //callgraphNode->addCalledFunction(cs,callgraph->getOrInsertFunction(callee));
                 }
             }
+        }
+    }
+
+    const CallICFGNode& cbn = *cs;
+    if (target.empty()) {
+        const llvm::CallBase* call_inst = llvm::cast<llvm::CallBase>(cbn.getCallSite()->getLLVMInstruction());
+		if (is_call_to_intrinsic(*call_inst)) {
+			return;
+		}
+        // create a map between FunctionType and the list of corresponding functions
+		if (signature_to_func.size() == 0) {
+			for (const llvm::Function* func : get_address_taken_functions()) {
+				signature_to_func[func->getFunctionType()].emplace_back(func);
+			}
+		}
+
+		// fill compatible types map
+		if (compatible_types.size() == 0) {
+			init_compatible_types();
+		}
+
+		/*
+		// debug printing
+		for (const auto& [key, value] : compatible_types) {
+		    logger.warn() << "Key: " << *key << ":";
+		    for (const auto& elem : value) {
+		        logger.warn() << " " << *elem;
+		    }
+		    logger.warn() << std::endl;
+		}
+		*/
+
+		// find all compatible types for this specific signature
+        auto ty = call_inst->getFunctionType();
+        std::vector<std::pair<std::vector<llvm::Type*>, unsigned>> types;
+        for (auto it = ty->param_begin(); it != ty->param_end(); ++it)
+        {
+            if (llvm::PointerType* ptr = llvm::dyn_cast<llvm::PointerType>(*it))
+            {
+                const auto o_it = compatible_types.find(ptr->getPointerElementType());
+                std::set<llvm::Type*> o_types;
+                if (o_it != compatible_types.end())
+                {
+                    o_types = compatible_types.at(ptr->getPointerElementType());
+                }
+                std::vector<llvm::Type*> alter_types;
+                alter_types.emplace_back(ptr);
+                for (llvm::Type* type : o_types)
+                {
+                    alter_types.emplace_back(
+                        llvm::PointerType::get(type, ptr->getAddressSpace()));
+                }
+                types.emplace_back(std::make_pair(alter_types, alter_types.size()));
+            }
+            else
+            {
+                types.emplace_back(std::make_pair({*it}, 1));
+            }
+        }
+
+        std::vector<std::vector<llvm::Type*>> cross_product;
+
+        auto is_ready =
+            [](std::vector<std::pair<std::vector<llvm::Type*>, unsigned>> v)
+            -> bool {
+            for (auto& elem : v)
+            {
+                if (elem.second > 0)
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        while (!is_ready(types))
+        {
+            std::vector<llvm::Type*> current;
+            bool overflow = true;
+            // generate the cross product
+            for (auto& type : types)
+            {
+                current.emplace_back(type.first[type.second - 1]);
+                if (overflow)
+                {
+                    if (type.second-- == 0)
+                    {
+                        type.second = type.first.size();
+                        overflow = true;
+                    } else {
+                        overflow = false;
+                    }
+                }
+            }
+            // check the concrete function signature
+            auto func_type = llvm::FunctionType::get(call_inst->getReturnType(),
+                                   llvm::ArrayRef<llvm::Type*>(current), false);
+            const auto& match = signature_to_func.find(func_type);
+			if (match != signature_to_func.end()) {
+				found_candidate = true;
+				for (const llvm::Function& func : match->second) {
+                    // const SVFFunction* callee = module.getSVFFunction(&target);
+					// TODO actual link: cs (caller) mit func (callee)
+				}
+			}
         }
     }
 }

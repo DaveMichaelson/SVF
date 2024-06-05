@@ -656,11 +656,12 @@ private:
     bool ret;           /// return true if this is an return instruction of a function
     InstVec succInsts;  /// successor Instructions
     InstVec predInsts;  /// predecessor Instructions
+    const Instruction* llvmInstruction;
 
 public:
     /// Constructor without name, set name with setName()
     SVFInstruction(const SVFType* ty, const SVFBasicBlock* b, bool tm,
-                   bool isRet, SVFValKind k = SVFInst);
+                   bool isRet, SVFValKind k = SVFInst, const Instruction* instr);
     SVFInstruction(void) = delete;
 
     static inline bool classof(const SVFValue *node)
@@ -709,6 +710,10 @@ public:
     {
         return ret;
     }
+
+    inline const Instruction* getLLVMInstruction() {
+        return llvmInstruction;
+    }
 };
 
 class SVFCallInst : public SVFInstruction
@@ -737,8 +742,8 @@ protected:
     /// @}
 
 public:
-    SVFCallInst(const SVFType* ty, const SVFBasicBlock* b, bool va, bool tm, SVFValKind k = SVFCall) :
-        SVFInstruction(ty, b, tm, false, k), varArg(va), calledVal(nullptr)
+    SVFCallInst(const SVFType* ty, const SVFBasicBlock* b, bool va, bool tm, const Instruction* instr, SVFValKind k = SVFCall) :
+        SVFInstruction(ty, b, tm, false, k, instr), varArg(va), calledVal(nullptr)
     {
     }
     SVFCallInst(void) = delete;
@@ -823,8 +828,8 @@ protected:
 
 public:
     SVFVirtualCallInst(const SVFType* ty, const SVFBasicBlock* b, bool vararg,
-                       bool tm)
-        : SVFCallInst(ty, b, vararg, tm, SVFVCall), vCallVtblPtr(nullptr),
+                       bool tm, const Instruction* instr)
+        : SVFCallInst(ty, b, vararg, tm, instr, SVFVCall), vCallVtblPtr(nullptr),
           virtualFunIdx(-1), funNameOfVcall()
     {
     }

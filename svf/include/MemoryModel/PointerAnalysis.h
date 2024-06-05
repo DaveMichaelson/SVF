@@ -32,6 +32,11 @@
 
 #include <unistd.h>
 #include <signal.h>
+#include <variant>
+#include <optional>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
 
 #include "Graphs/CHG.h"
 #include "Graphs/PTACallGraph.h"
@@ -45,6 +50,7 @@
 
 namespace SVF
 {
+
 
 class CommonCHGraph;
 
@@ -155,6 +161,14 @@ protected:
     ICFG* icfg;
     /// CHGraph
     CommonCHGraph *chgraph;
+
+    // FunctionType pointers are guaranteed to be unique, see
+    // llvm-sources/lib/IR/Types.cpp
+    std::unordered_map<llvm::FunctionType*, std::vector<const llvm::Function*>>
+        signature_to_func;
+    using TypeMap = std::map<llvm::Type*, std::set<llvm::Type*>>;
+    TypeMap compatible_types;
+    unsigned ignored_calls = 0;
 
 public:
     /// Get ICFG
@@ -279,6 +293,24 @@ protected:
 
     /// Reset all object node as field-sensitive.
     void resetObjFieldSensitive();
+
+
+
+		/**
+		 * Initialize a map of compatible types.
+		 *
+		 * That are types where their pointer can be used interchangeable.
+		 * Especially this is the case for C++ subclass pointer, that can be used interchangeable with their
+		 * superclasses.
+		 */
+		void init_compatible_types();
+
+		void get_atf_from_value(const llvm::Value& value,
+		                        std::vector<const llvm::Function*>& functions);
+		void get_atf_from_user(const llvm::User& user,
+		                       std::vector<const llvm::Function*>& functions);
+		std::vector<const llvm::Function*> get_address_taken_functions();
+
 
 public:
     /// Dump the statistics

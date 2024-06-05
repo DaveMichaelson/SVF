@@ -30,6 +30,8 @@
 #ifndef INCLUDE_SVFMODULE_H_
 #define INCLUDE_SVFMODULE_H_
 
+#include <llvm/IR/Module.h>
+
 #include "SVFIR/SVFValue.h"
 #include "Util/NodeIDAllocator.h"
 #include "Util/ThreadAPI.h"
@@ -72,6 +74,7 @@ private:
     ConstantType ConstantSet;     ///< The ConstantData in the module
     OtherValueType OtherValueSet; ///< All other values in the module
     TypeSetType TypeSet;
+    std::vector<llvm::Module *> modules;
 
     /// Constructors
     SVFModule() = default;
@@ -90,6 +93,18 @@ public:
     inline void setModuleIdentifier(const std::string& moduleIdentifier)
     {
         this->moduleIdentifier = moduleIdentifier;
+    }
+
+    inline void addLlvmModule(llvm::Module * module) {
+        modules.emplace_back(module);
+    }
+
+    inline int getNumLlvmModules() {
+        return modules.size();
+    }
+
+    inline llvm::Module * getLlvmModule(unsigned i) {
+        return modules[i];
     }
 
     static inline std::string pagFileName()

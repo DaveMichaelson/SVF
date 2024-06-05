@@ -177,6 +177,7 @@ void LLVMModuleSet::createSVFDataStructure()
 
     for (Module& mod : modules)
     {
+        svfModule->addLlvmModule(&mod);
         collectInheritanceInfo(&mod);
         /// Function
         for (Function& func : mod.functions())
@@ -270,6 +271,31 @@ std::vector<std::string> LLVMModuleSet::parseFunctionSignature(std::string metad
         }
     }
     return signature;
+    // if (metadata.find("ReturnType") == std::string::npos)
+    //     return;
+
+    // llvm::Expected<llvm::json::Value> result = llvm::json::parse(metadata);
+    // if (auto e = result.takeError())
+    // {
+    //     SVFUtil::errs() << "Problem with parsing Class Info JSON " << llvm::toString(std::move(e)) << "\n";
+    //     return;
+    // }
+    
+    // llvm::json::Object *o;
+    // if (!(o = result->getAsObject()))
+    //     return;
+
+    // std::string returnTypeName;
+    // if (auto s = o->getString("ReturnType"))
+    //     returnTypeName = s.value().str();
+    // else
+    //     return;
+
+    // llvm::json::Array *typeNames;
+    // if (!(typeNames = o->getArray("TypeList")))
+    //     return;
+
+    
 }
 
 void LLVMModuleSet::createSVFFunction(const Function* func)
@@ -317,12 +343,12 @@ void LLVMModuleSet::createSVFFunction(const Function* func)
                     svfInst = new SVFVirtualCallInst(
                         getSVFType(call->getType()), svfBB,
                         call->getFunctionType()->isVarArg(),
-                        inst.isTerminator());
+                        inst.isTerminator(), &inst);
                 else
                     svfInst = new SVFCallInst(
                         getSVFType(call->getType()), svfBB,
                         call->getFunctionType()->isVarArg(),
-                        inst.isTerminator());
+                        inst.isTerminator(), &inst);
                 parseFunctionSignature(SVFUtil::dyn_cast<SVFCallInst>(svfInst), 
                     call);
             }
@@ -331,7 +357,7 @@ void LLVMModuleSet::createSVFFunction(const Function* func)
                 svfInst =
                     new SVFInstruction(getSVFType(inst.getType()),
                                        svfBB, inst.isTerminator(),
-                                       SVFUtil::isa<ReturnInst>(inst));
+                                       SVFUtil::isa<ReturnInst>(inst), &inst);
             }
 
             svfBB->addInstruction(svfInst);
