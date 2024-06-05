@@ -539,7 +539,12 @@ public:
     }
 
     bool hasSuperClass(const SVFMetadataType *type) const {
-        return superClasses.count(type);
+        bool contains = superClasses.count(type);
+        if (!contains)
+            for (auto superType : superClasses)
+                if (superType->hasSuperClass(type))
+                    return true;
+        return contains;
     }
 };
 

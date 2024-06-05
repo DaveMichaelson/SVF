@@ -882,29 +882,74 @@ void LLVMModuleSet::collectFunAnnotations(const Module* mod, Fun2AnnoMap &fun2An
     }
 }
 
-void LLVMModuleSet::parseClassInfoMetadata(std::string annotation) {
-    std::regex regex("ClassInfo=(.*)");
-    std::smatch matches;
+void LLVMModuleSet::parseClassInfoMetadata(llvm::StringRef annotation) {
+    // std::regex regex("ClassInfo=(.*)");
+    // std::smatch matches;
 
-    if(!std::regex_search(annotation, matches, regex)) {
-        // signature.push_back(matches[2].str());
-        // std::stringstream args(matches[1].str());
-        // std::string arg;
-        // while (getline(args, arg, ',')) {
-        //     signature.push_back(arg);
-        // }
+    // if(!std::regex_search(annotation, matches, regex)) {
+    //     // signature.push_back(matches[2].str());
+    //     // std::stringstream args(matches[1].str());
+    //     // std::string arg;
+    //     // while (getline(args, arg, ',')) {
+    //     //     signature.push_back(arg);
+    //     // }
+    //     return;
+    // }
+
+    // SVFUtil::outs() << "parseClassInfoMetadata\n";
+    // SVFUtil::outs() << annotation.str() << "\n";
+    std::string annotationWithoutNull = annotation.str();
+    annotationWithoutNull.erase(std::find(annotationWithoutNull.begin(), annotationWithoutNull.end(), '\0'), annotationWithoutNull.end());
+
+    // SVFUtil::outs() << matches[1] << "\n";
+
+    llvm::Expected<llvm::json::Value> result = llvm::json::parse(annotationWithoutNull);
+    if (auto e = result.takeError())
+    {
+        SVFUtil::errs() << "Problem with parsing Class Info JSON " << llvm::toString(std::move(e)) << "\n";
         return;
     }
-
-    llvm::Expected<llvm::json::Value> result = llvm::json::parse(matches[1].str());
-    if (result.takeError())
-        return;
+    
     llvm::json::Object *o;
     if (!(o = result->getAsObject()))
         return;
-    llvm::StringRef className;
+
+    std::string className;
     if (auto s = o->getString("ClassName"))
-        className = s.getValue();
+        className = s.value().str();
+    else
+        return;
+
+    // SVFUtil::outs() << "className=" << className << "\n";
+
+    llvm::json::Array *baseClasses;
+    if (!(baseClasses = o->getArray("BaseClasses")))
+        return;
+
+    // SVFUtil::outs() << "baseClasses=";
+    // for (auto b : *baseClasses) {
+    //     SVFUtil::outs() << b.getAsString().value().str() << ","; 
+    // }
+    // SVFUtil::outs() << "\n";
+    auto type = MetadataName2TypeMap.find(className);
+    // SVFUtil::outs() << className << "\n";
+    if (type == MetadataName2TypeMap.end())
+    {
+        type = MetadataName2TypeMap.insert(type, std::make_pair(className, new SVFMetadataType()));
+    }
+        
+    for (llvm::json::Value *base : baseClasses) {
+        std::string baseName;
+        if (auto s = base->getAsString())
+            baseName = s.value().str();
+        else
+            continue;
+            
+        auto baseType = MetadataName2TypeMap.find(baseName);
+        if (baseType == MetadataName2TypeMap.end())
+            baseType = MetadataName2TypeMap.insert(type, std::make_pair(baseName, new SVFMetadataType()));
+        type.second->addSuperClass(baseType.second);
+    }
 
 }
 
@@ -933,9 +978,9 @@ void LLVMModuleSet::collectInheritanceInfo(const Module *mod) {
         ConstantDataSequential *data = SVFUtil::dyn_cast<ConstantDataSequential>(annotateStr->getInitializer());
         if (data && data->isString())
         {
-            std::string annotation = data->getAsString().str();
-            if (annotation.find("ClassInfo=") != std::string::npos)
-                SVFUtil::outs() << annotation << "\n";
+            llvm::StringRef annotation = data->getAsString();
+            if (annotation.find("ClassName") != std::string::npos)
+                parseClassInfoMetadata(annotation);
         }
     }
 }

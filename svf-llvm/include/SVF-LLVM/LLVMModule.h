@@ -84,6 +84,7 @@ private:
     Fun2AnnoMap Fun2Annotations;
     /// Global definition to a rep definition map
     GlobalDefToRepMapTy GlobalDefToRepMap;
+    Name2TypeMap MetadataName2TypeMap;
 
     LLVMFun2SVFFunMap LLVMFunc2SVFFunc; ///< Map an LLVM Function to an SVF Function
     LLVMBB2SVFBBMap LLVMBB2SVFBB;
@@ -399,7 +400,7 @@ private:
     void parseFunctionSignature(SVFFunction *svfFunc);
     void parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase* call);
     std::vector<std::string> parseFunctionSignature(std::string metadata);
-    void parseClassInfoMetadata(std::string annotation);
+    void parseClassInfoMetadata(llvm::StringRef annotation);
 };
 
 } // End namespace SVF
