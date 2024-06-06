@@ -411,6 +411,12 @@ public:
     }
     //@}
 
+    void addIndirectCallGraphEdge(const CallICFGNode* cs,
+                                  const SVFFunction* callee,
+                                  CallEdgeMap& newEdges);
+
+    void resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap& newEdges);
+
     /// Resolve indirect call edges
     virtual void resolveIndCalls(const CallICFGNode* cs, const PointsTo& target, CallEdgeMap& newEdges);
 

@@ -58,11 +58,11 @@ static SVFValue* createSVFValue(SVFValue::GNodeK kind, const SVFType* type,
         case SVFValue::SVFBB:
             return new SVFBasicBlock(type, {});
         case SVFValue::SVFInst:
-            return new SVFInstruction(type, {}, {}, {});
+            return new SVFInstruction(type, {}, {}, {}, {});
         case SVFValue::SVFCall:
-            return new SVFCallInst(type, {}, {}, {});
+            return new SVFCallInst(type, {}, {}, {}, {});
         case SVFValue::SVFVCall:
-            return new SVFVirtualCallInst(type, {}, {}, {});
+            return new SVFVirtualCallInst(type, {}, {}, {}, {});
         case SVFValue::SVFGlob:
             return new SVFGlobalValue(type);
         case SVFValue::SVFArg:

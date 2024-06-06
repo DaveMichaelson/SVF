@@ -478,12 +478,6 @@ template <class T> inline remove_pointer<T>& safe_deref(T&& t)
     return *t;
 }
 
-template <class T> inline remove_pointer<T>& safe_deref(T&& t)
-{
-    assert(t != nullptr && "t is not null");
-    return *t;
-}
-
 void PointerAnalysis::get_atf_from_user(
     const llvm::User& user,
     std::vector<const llvm::Function*>& functions)
@@ -507,7 +501,7 @@ PointerAnalysis::get_address_taken_functions()
         {
             for (const auto& i : bb)
             {
-                if (llvm::isa<llvm::CallInst>(i))
+                if (llvm::isa<llvm::CallBase>(i))
                 {
                     continue;
                 }
@@ -552,12 +546,153 @@ bool is_call_to_intrinsic(const llvm::Instruction& inst)
     return false;
 }
 
+void PointerAnalysis::addIndirectCallGraphEdge(const CallICFGNode* cs,
+                                               const SVFFunction* callee,
+                                               CallEdgeMap& newEdges)
+{
+    if (0 == getIndCallMap()[cs].count(callee))
+    {
+        newEdges[cs].insert(callee);
+        getIndCallMap()[cs].insert(callee);
+
+        ptaCallGraph->addIndirectCallGraphEdge(cs, cs->getCaller(), callee);
+        // FIXME: do we need to update llvm call graph here?
+        // The indirect call is maintained by ourself, We may update llvm's when
+        // we need to
+        // CallGraphNode* callgraphNode =
+        // callgraph->getOrInsertFunction(cs.getCaller());
+        // callgraphNode->addCalledFunction(cs,callgraph->getOrInsertFunction(callee));
+    }
+}
+
+void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
+                                             CallEdgeMap& newEdges)
+{
+    SVFUtil::outs() << "resolveFunctionPointer ARA\n";
+    const llvm::CallBase* call_inst =
+        SVFUtil::cast<llvm::CallBase>(cs->getCallSite()->getLLVMInstruction());
+    if (is_call_to_intrinsic(*call_inst))
+    {
+        return;
+    }
+    // create a map between FunctionType and the list of corresponding functions
+    if (signature_to_func.size() == 0)
+    {
+        for (const llvm::Function* func : get_address_taken_functions())
+        {
+            signature_to_func[func->getFunctionType()].emplace_back(func);
+        }
+    }
+
+    // fill compatible types map
+    if (compatible_types.size() == 0)
+    {
+        init_compatible_types();
+    }
+
+    /*
+    // debug printing
+    for (const auto& [key, value] : compatible_types) {
+        logger.warn() << "Key: " << *key << ":";
+        for (const auto& elem : value) {
+            logger.warn() << " " << *elem;
+        }
+        logger.warn() << std::endl;
+    }
+    */
+
+    // find all compatible types for this specific signature
+    auto ty = call_inst->getFunctionType();
+    std::vector<std::pair<std::vector<llvm::Type*>, unsigned>> types;
+    for (auto it = ty->param_begin(); it != ty->param_end(); ++it)
+    {
+        if (llvm::PointerType* ptr = llvm::dyn_cast<llvm::PointerType>(*it))
+        {
+            const auto o_it =
+                compatible_types.find(ptr->getPointerElementType());
+            std::set<llvm::Type*> o_types;
+            if (o_it != compatible_types.end())
+            {
+                o_types = compatible_types.at(ptr->getPointerElementType());
+            }
+            std::vector<llvm::Type*> alter_types;
+            alter_types.emplace_back(ptr);
+            for (llvm::Type* type : o_types)
+            {
+                alter_types.emplace_back(
+                    llvm::PointerType::get(type, ptr->getAddressSpace()));
+            }
+            types.emplace_back(std::make_pair(alter_types, alter_types.size()));
+        }
+        else
+        {
+            std::vector<llvm::Type*> single = {*it};
+            types.emplace_back(std::make_pair(single, 1));
+        }
+    }
+
+    std::vector<std::vector<llvm::Type*>> cross_product;
+
+    auto is_finish =
+        [](std::vector<std::pair<std::vector<llvm::Type*>, unsigned>> v)
+        -> bool {
+        for (auto& elem : v)
+        {
+            if (elem.second > 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    while (!is_finish(types))
+    {
+        std::vector<llvm::Type*> current;
+        bool overflow = true;
+        // generate the cross product
+        for (auto& type : types)
+        {
+            current.emplace_back(type.first[type.second - 1]);
+            if (overflow)
+            {
+                if (type.second-- == 0)
+                {
+                    type.second = type.first.size();
+                    overflow = true;
+                }
+                else
+                {
+                    overflow = false;
+                }
+            }
+        }
+        // check the concrete function signature
+        auto func_type = llvm::FunctionType::get(
+            call_inst->getFunctionType()->getReturnType(),
+            llvm::ArrayRef<llvm::Type*>(current), false);
+        const auto& match = signature_to_func.find(func_type);
+        if (match != signature_to_func.end())
+        {
+            for (const llvm::Function* func : match->second)
+            {
+                // const SVFFunction* callee = module.getSVFFunction(&target);
+                // TODO actual link: cs (caller) mit func (callee)
+                SVFModule* mod = SVF::SVFModule::getSVFModule();
+                addIndirectCallGraphEdge(cs, mod->getSVFFunction(func),
+                                         newEdges);
+            }
+        }
+    }
+}
+
 /*!
  * Resolve indirect calls
  */
 void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& target, CallEdgeMap& newEdges)
 {
 
+    SVFUtil::outs() << "resovleIndCalls pointsto.size=" << target.count() << "\n";
     assert(pag->isIndirectCallSites(cs) && "not an indirect callsite?");
     /// discover indirect pointer target
     for (PointsTo::iterator ii = target.begin(), ie = target.end();
@@ -582,24 +717,15 @@ void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& ta
                 if(SVFUtil::matchArgs(cs->getCallSite(), callee) == false)
                     continue;
 
-                if(0 == getIndCallMap()[cs].count(callee))
-                {
-                    newEdges[cs].insert(callee);
-                    getIndCallMap()[cs].insert(callee);
-
-                    ptaCallGraph->addIndirectCallGraphEdge(cs, cs->getCaller(), callee);
-                    // FIXME: do we need to update llvm call graph here?
-                    // The indirect call is maintained by ourself, We may update llvm's when we need to
-                    //CallGraphNode* callgraphNode = callgraph->getOrInsertFunction(cs.getCaller());
-                    //callgraphNode->addCalledFunction(cs,callgraph->getOrInsertFunction(callee));
-                }
+                addIndirectCallGraphEdge(cs, callee, newEdges);
             }
         }
     }
 
-    const CallICFGNode& cbn = *cs;
+    // const CallICFGNode& cbn = *cs;
     if (target.empty()) {
-        const llvm::CallBase* call_inst = llvm::cast<llvm::CallBase>(cbn.getCallSite()->getLLVMInstruction());
+        SVFUtil::outs() << "resolveFunctionPointer ARA\n";
+        const llvm::CallBase* call_inst = SVFUtil::cast<llvm::CallBase>(cs->getCallSite()->getLLVMInstruction());
 		if (is_call_to_intrinsic(*call_inst)) {
 			return;
 		}
@@ -650,13 +776,14 @@ void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& ta
             }
             else
             {
-                types.emplace_back(std::make_pair({*it}, 1));
+                std::vector<llvm::Type*> single = {*it};
+                types.emplace_back(std::make_pair(single, 1));
             }
         }
 
         std::vector<std::vector<llvm::Type*>> cross_product;
 
-        auto is_ready =
+        auto is_finish =
             [](std::vector<std::pair<std::vector<llvm::Type*>, unsigned>> v)
             -> bool {
             for (auto& elem : v)
@@ -669,7 +796,7 @@ void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& ta
             return true;
         };
 
-        while (!is_ready(types))
+        while (!is_finish(types))
         {
             std::vector<llvm::Type*> current;
             bool overflow = true;
@@ -689,14 +816,15 @@ void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& ta
                 }
             }
             // check the concrete function signature
-            auto func_type = llvm::FunctionType::get(call_inst->getReturnType(),
+            auto func_type = llvm::FunctionType::get(call_inst->getFunctionType()->getReturnType(),
                                    llvm::ArrayRef<llvm::Type*>(current), false);
             const auto& match = signature_to_func.find(func_type);
 			if (match != signature_to_func.end()) {
-				found_candidate = true;
-				for (const llvm::Function& func : match->second) {
+				for (const llvm::Function* func : match->second) {
                     // const SVFFunction* callee = module.getSVFFunction(&target);
 					// TODO actual link: cs (caller) mit func (callee)
+                    SVFModule* mod = SVF::SVFModule::getSVFModule();
+                    addIndirectCallGraphEdge(cs, mod->getSVFFunction(func), newEdges);
 				}
 			}
         }
@@ -743,6 +871,7 @@ void PointerAnalysis::getVFnsFromPts(const CallICFGNode* cs, const PointsTo &tar
  */
 void PointerAnalysis::connectVCallToVFns(const CallICFGNode* cs, const VFunSet &vfns, CallEdgeMap& newEdges)
 {
+    SVFUtil::outs() << "connectVCallToVFns pointsto.size=" << vfns.size() << "\n";
     //// connect all valid functions
     for (VFunSet::const_iterator fit = vfns.begin(),
             feit = vfns.end(); fit != feit; ++fit)

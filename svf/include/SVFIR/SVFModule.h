@@ -63,6 +63,7 @@ public:
     typedef ConstantType::const_iterator const_cdata_iterator;
     typedef OtherValueType::iterator ovalue_iterator;
     typedef OtherValueType::const_iterator const_ovalue_iterator;
+    typedef Map<const llvm::Function*, SVFFunction*> LLVMFun2SVFFunMap;
 
 private:
     static SVFModule* svfModule;
@@ -75,6 +76,7 @@ private:
     OtherValueType OtherValueSet; ///< All other values in the module
     TypeSetType TypeSet;
     std::vector<llvm::Module *> modules;
+    LLVMFun2SVFFunMap *LLVMFunc2SVFFunc;
 
     /// Constructors
     SVFModule() = default;
@@ -103,8 +105,19 @@ public:
         return modules.size();
     }
 
-    inline llvm::Module * getLlvmModule(unsigned i) {
+    inline llvm::Module* getLlvmModule(unsigned i) {
         return modules[i];
+    }
+
+    inline SVFFunction* getSVFFunction(const llvm::Function* func) const
+    {
+        LLVMFun2SVFFunMap::const_iterator it = LLVMFunc2SVFFunc->find(func);
+        assert(it != LLVMFunc2SVFFunc->end() && "SVF Function not found!");
+        return it->second;
+    }
+
+    inline void setLLVMFunc2SVFFunc(LLVMFun2SVFFunMap* map) {
+        this->LLVMFunc2SVFFunc = map;
     }
 
     static inline std::string pagFileName()

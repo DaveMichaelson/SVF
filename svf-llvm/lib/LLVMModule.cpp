@@ -174,6 +174,7 @@ void LLVMModuleSet::createSVFDataStructure()
     // candidateDefs is the vector for all used defined functions
     // candidateDecls is the vector for all used declared functions
     std::vector<const Function*> candidateDefs, candidateDecls;
+    svfModule->setLLVMFunc2SVFFunc(&LLVMFunc2SVFFunc);
 
     for (Module& mod : modules)
     {

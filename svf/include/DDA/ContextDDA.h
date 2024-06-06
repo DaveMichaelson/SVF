@@ -141,6 +141,7 @@ public:
     //@{
     virtual void updateCallGraphAndSVFG(const CxtLocDPItem& dpm,const CallICFGNode* cs,SVFGEdgeSet& svfgEdges) override
     {
+        SVFUtil::outs() << "ContextDDA::updateCallGraphAndSVFG\n";
         CallEdgeMap newEdges;
         resolveIndCalls(cs, getBVPointsTo(getCachedPointsTo(dpm)), newEdges);
         for (CallEdgeMap::const_iterator iter = newEdges.begin(),eiter = newEdges.end(); iter != eiter; iter++)

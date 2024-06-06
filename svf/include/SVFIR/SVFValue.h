@@ -33,6 +33,7 @@
 #include "SVFIR/SVFType.h"
 #include "Graphs/GraphPrinter.h"
 #include "Util/Casting.h"
+#include <llvm/IR/Instruction.h>
 
 namespace SVF
 {
@@ -656,12 +657,12 @@ private:
     bool ret;           /// return true if this is an return instruction of a function
     InstVec succInsts;  /// successor Instructions
     InstVec predInsts;  /// predecessor Instructions
-    const Instruction* llvmInstruction;
+    const llvm::Instruction* llvmInstruction;
 
 public:
     /// Constructor without name, set name with setName()
     SVFInstruction(const SVFType* ty, const SVFBasicBlock* b, bool tm,
-                   bool isRet, SVFValKind k = SVFInst, const Instruction* instr);
+                   bool isRet, const llvm::Instruction* instr, SVFValKind k = SVFInst);
     SVFInstruction(void) = delete;
 
     static inline bool classof(const SVFValue *node)
@@ -711,7 +712,7 @@ public:
         return ret;
     }
 
-    inline const Instruction* getLLVMInstruction() {
+    inline const llvm::Instruction* getLLVMInstruction() const {
         return llvmInstruction;
     }
 };
@@ -742,8 +743,10 @@ protected:
     /// @}
 
 public:
-    SVFCallInst(const SVFType* ty, const SVFBasicBlock* b, bool va, bool tm, const Instruction* instr, SVFValKind k = SVFCall) :
-        SVFInstruction(ty, b, tm, false, k, instr), varArg(va), calledVal(nullptr)
+    SVFCallInst(const SVFType* ty, const SVFBasicBlock* b, bool va, bool tm,
+                const llvm::Instruction* instr, SVFValKind k = SVFCall)
+        : SVFInstruction(ty, b, tm, false, instr, k), varArg(va),
+          calledVal(nullptr)
     {
     }
     SVFCallInst(void) = delete;
@@ -828,7 +831,7 @@ protected:
 
 public:
     SVFVirtualCallInst(const SVFType* ty, const SVFBasicBlock* b, bool vararg,
-                       bool tm, const Instruction* instr)
+                       bool tm, const llvm::Instruction* instr)
         : SVFCallInst(ty, b, vararg, tm, instr, SVFVCall), vCallVtblPtr(nullptr),
           virtualFunIdx(-1), funNameOfVcall()
     {
