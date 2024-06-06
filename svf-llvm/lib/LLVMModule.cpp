@@ -178,7 +178,10 @@ void LLVMModuleSet::createSVFDataStructure()
 
     for (Module& mod : modules)
     {
-        svfModule->addLlvmModule(&mod);
+        if (mod.getName().str() != ExtAPI::getExtAPI()->getExtBcPath())
+        {
+            svfModule->addLlvmModule(&mod);
+        }
         collectInheritanceInfo(&mod);
         /// Function
         for (Function& func : mod.functions())
@@ -344,12 +347,12 @@ void LLVMModuleSet::createSVFFunction(const Function* func)
                     svfInst = new SVFVirtualCallInst(
                         getSVFType(call->getType()), svfBB,
                         call->getFunctionType()->isVarArg(),
-                        inst.isTerminator(), &inst);
+                        inst.isTerminator(), call);
                 else
                     svfInst = new SVFCallInst(
                         getSVFType(call->getType()), svfBB,
                         call->getFunctionType()->isVarArg(),
-                        inst.isTerminator(), &inst);
+                        inst.isTerminator(), call);
                 parseFunctionSignature(SVFUtil::dyn_cast<SVFCallInst>(svfInst), 
                     call);
             }

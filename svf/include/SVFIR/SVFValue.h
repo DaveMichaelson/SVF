@@ -33,7 +33,7 @@
 #include "SVFIR/SVFType.h"
 #include "Graphs/GraphPrinter.h"
 #include "Util/Casting.h"
-#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
 
 namespace SVF
 {
@@ -728,6 +728,7 @@ private:
     std::vector<const SVFValue*> args;
     bool varArg;
     const SVFValue* calledVal;
+    const llvm::CallBase* callBase;
     std::vector<std::string> signature;
 
 protected:
@@ -744,9 +745,9 @@ protected:
 
 public:
     SVFCallInst(const SVFType* ty, const SVFBasicBlock* b, bool va, bool tm,
-                const llvm::Instruction* instr, SVFValKind k = SVFCall)
-        : SVFInstruction(ty, b, tm, false, instr, k), varArg(va),
-          calledVal(nullptr)
+                const llvm::CallBase* cb, SVFValKind k = SVFCall)
+        : SVFInstruction(ty, b, tm, false, cb, k), varArg(va),
+          calledVal(nullptr), callBase(cb)
     {
     }
     SVFCallInst(void) = delete;
@@ -802,6 +803,10 @@ public:
     inline void setSignature(std::vector<std::string> signature) {
         this->signature = signature;
     }
+
+    inline const llvm::CallBase* getCallBase() const {
+        return callBase;
+    }
 };
 
 class SVFVirtualCallInst : public SVFCallInst
@@ -831,8 +836,8 @@ protected:
 
 public:
     SVFVirtualCallInst(const SVFType* ty, const SVFBasicBlock* b, bool vararg,
-                       bool tm, const llvm::Instruction* instr)
-        : SVFCallInst(ty, b, vararg, tm, instr, SVFVCall), vCallVtblPtr(nullptr),
+                       bool tm, const llvm::CallBase* cb)
+        : SVFCallInst(ty, b, vararg, tm, cb, SVFVCall), vCallVtblPtr(nullptr),
           virtualFunIdx(-1), funNameOfVcall()
     {
     }
