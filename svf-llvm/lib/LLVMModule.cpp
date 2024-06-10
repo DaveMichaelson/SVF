@@ -318,7 +318,6 @@ std::vector<std::string> LLVMModuleSet::parseFunctionSignature(std::string metad
 
     signature.push_back(returnTypeName);
     for (auto type : *typeNames) {
-        // SVFUtil::outs() << "baseClass: ";
         std::string typeName;
         if (auto s = type.getAsString())
             typeName = s.value().str();
@@ -326,11 +325,6 @@ std::vector<std::string> LLVMModuleSet::parseFunctionSignature(std::string metad
             continue;
         signature.push_back(typeName);
     }
-
-    SVFUtil::outs() << "parseFunciont metadata=" << metadata << " list:";
-    for (auto e : signature)
-        SVFUtil::outs() << e << ", ";
-    SVFUtil::outs() << "\n";
     
     return signature;
 }
@@ -955,7 +949,6 @@ TypeMetadata* LLVMModuleSet::getTypeMetadataForName(std::string& name) {
         svfModule->addType(newType);
         type = MetadataName2TypeMap.insert(type, std::make_pair(name, newType));
     }
-    svfModule->addType(type->second);
     return type->second;
 }
 

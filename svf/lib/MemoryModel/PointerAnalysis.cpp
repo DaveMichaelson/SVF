@@ -704,10 +704,9 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap
     const SVFCallInst* ci = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite());
     for (const SVFFunction* func : svfMod->getFunctionSet()) {
         if (ci->getFuncTypeMD().isOfType(func->getFuncTypeMD()))
-            {
-                addIndirectCallGraphEdge(cs, func, newEdges);
-            }
-        printFuncType(func->getFuncTypeMD(), func->getName());
+        {
+            addIndirectCallGraphEdge(cs, func, newEdges);
+        }
     }
 }
 
@@ -746,7 +745,6 @@ void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& ta
         }
     }
 
-    // const CallICFGNode& cbn = *cs;
     if (target.empty()) {
         resolveFunctionPointer(cs, newEdges);
     }
