@@ -565,7 +565,7 @@ void PointerAnalysis::addIndirectCallGraphEdge(const CallICFGNode* cs,
     }
 }
 
-void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
+void PointerAnalysis::resolveFunctionPointerARA(const CallICFGNode* cs,
                                              CallEdgeMap& newEdges)
 {
     SVFUtil::outs() << "resolveFunctionPointer ARA\n";
@@ -691,13 +691,32 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
     }
 }
 
+void printFuncType(const FuncTypeMetadata& funcType, std::string name)
+{
+    SVFUtil::outs() << name << ": ";
+    for (auto argType : funcType.getSignature())
+        SVFUtil::outs() << argType->toString() << ", ";
+    SVFUtil::outs() << "\n";
+}
+
+void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap& newEdges)
+{
+    const SVFCallInst* ci = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite());
+    for (const SVFFunction* func : svfMod->getFunctionSet()) {
+        if (ci->getFuncTypeMD().isOfType(func->getFuncTypeMD()))
+            {
+                addIndirectCallGraphEdge(cs, func, newEdges);
+            }
+        printFuncType(func->getFuncTypeMD(), func->getName());
+    }
+}
+
 /*!
  * Resolve indirect calls
  */
 void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& target, CallEdgeMap& newEdges)
 {
 
-    SVFUtil::outs() << "resovleIndCalls pointsto.size=" << target.count() << "\n";
     assert(pag->isIndirectCallSites(cs) && "not an indirect callsite?");
     /// discover indirect pointer target
     for (PointsTo::iterator ii = target.begin(), ie = target.end();
@@ -773,7 +792,6 @@ void PointerAnalysis::getVFnsFromPts(const CallICFGNode* cs, const PointsTo &tar
  */
 void PointerAnalysis::connectVCallToVFns(const CallICFGNode* cs, const VFunSet &vfns, CallEdgeMap& newEdges)
 {
-    SVFUtil::outs() << "connectVCallToVFns pointsto.size=" << vfns.size() << "\n";
     //// connect all valid functions
     for (VFunSet::const_iterator fit = vfns.begin(),
             feit = vfns.end(); fit != feit; ++fit)

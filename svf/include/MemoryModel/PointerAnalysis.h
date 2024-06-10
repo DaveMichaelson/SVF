@@ -415,6 +415,7 @@ public:
                                   const SVFFunction* callee,
                                   CallEdgeMap& newEdges);
 
+    void resolveFunctionPointerARA(const CallICFGNode* cs, CallEdgeMap& newEdges);
     void resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap& newEdges);
 
     /// Resolve indirect call edges

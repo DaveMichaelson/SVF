@@ -323,6 +323,7 @@ private:
     std::vector<std::string> annotations; /// annotations of this function
     SVFBasicBlock *exitBlock;             /// a 'single' basic block having no successors and containing return instruction in a function
     std::vector<std::string> signature;
+    FuncTypeMetadata funcTypeMD;
 
 protected:
     ///@{ attributes to be set only through Module builders e.g., LLVMModule
@@ -535,6 +536,16 @@ public:
         return signature;
     }
 
+    inline FuncTypeMetadata& getFuncTypeMD()
+    {
+        return funcTypeMD;
+    }
+
+    inline const FuncTypeMetadata& getFuncTypeMD() const
+    {
+        return funcTypeMD;
+    }
+
     inline void setSignature(std::vector<std::string> signature) {
         this->signature = signature;
     }
@@ -730,6 +741,7 @@ private:
     const SVFValue* calledVal;
     const llvm::CallBase* callBase;
     std::vector<std::string> signature;
+    FuncTypeMetadata funcTypeMD;
 
 protected:
     ///@{ attributes to be set only through Module builders e.g., LLVMModule
@@ -802,6 +814,16 @@ public:
 
     inline void setSignature(std::vector<std::string> signature) {
         this->signature = signature;
+    }
+
+    inline FuncTypeMetadata& getFuncTypeMD()
+    {
+        return funcTypeMD;
+    }
+
+    inline const FuncTypeMetadata& getFuncTypeMD() const
+    {
+        return funcTypeMD;
     }
 
     inline const llvm::CallBase* getCallBase() const {

@@ -30,6 +30,7 @@
 #include <queue>
 #include <algorithm>
 #include <regex>
+#include <optional>
 #include "SVFIR/SVFModule.h"
 #include "Util/SVFUtil.h"
 #include "SVF-LLVM/BasicTypes.h"
@@ -238,6 +239,32 @@ void LLVMModuleSet::createSVFDataStructure()
     }
 }
 
+
+
+ArgTypeMetadata* LLVMModuleSet::parseArgType(std::string s) {
+    // https://regex101.com/r/cO3Ayx/1
+    static std::regex regex("(const )?(class )?([^<* ]*)(<([^>]*)>)? ?(\\*+)?");
+    // Group3 typeName
+    // Group5 templateString
+    // Group6 pointer
+    std::smatch matches;
+    if (!std::regex_search(s, matches, regex)) {
+        SVFUtil::outs() << "Could not parse arg!\n";
+        return nullptr;
+    }
+    std::string typeName = matches[3].str();
+    std::string pointer = matches[6].str();
+    unsigned c = std::count(pointer.begin(), pointer.end(), '*');
+    ArgTypeMetadata* argType = new ArgTypeMetadata(getTypeMetadataForName(typeName), c);
+    return argType;
+}
+
+void LLVMModuleSet::parseFuncType(FuncTypeMetadata& funcType, const std::vector<std::string>& signature) {
+    for (std::string argString : signature) {
+        funcType.addToSignature(parseArgType(argString));
+    }
+}
+
 void LLVMModuleSet::parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase *call) {
     llvm::SmallVector<MDNode *> mdnodes;
     call->getUserMetadata(mdnodes);
@@ -246,6 +273,7 @@ void LLVMModuleSet::parseFunctionSignature(SVFCallInst *svfCallInstr, const Call
             llvm::cast<MDString>(metadata->getOperand(0))->getString().str());
         if(!signature.empty()) {
             svfCallInstr->setSignature(signature);
+            parseFuncType(svfCallInstr->getFuncTypeMD(), signature);
             return;
         }
     }
@@ -256,50 +284,55 @@ void LLVMModuleSet::parseFunctionSignature(SVFFunction *svfFunc) {
         std::vector<std::string> signature = parseFunctionSignature(i);
         if(!signature.empty()) {
             svfFunc->setSignature(signature);
+            parseFuncType(svfFunc->getFuncTypeMD(), signature);
             return;
         }
     }
 }
 
 std::vector<std::string> LLVMModuleSet::parseFunctionSignature(std::string metadata) {
-    std::regex regex("CallSignature=\\((.*)\\)->([^\\0]*)");
-    std::smatch matches;
     std::vector<std::string> signature;
+    if (metadata.find("ReturnType") == std::string::npos)
+        return signature;
 
-    if(std::regex_search(metadata, matches, regex)) {
-        signature.push_back(matches[2].str());
-        std::stringstream args(matches[1].str());
-        std::string arg;
-        while (getline(args, arg, ',')) {
-            signature.push_back(arg);
-        }
+    llvm::Expected<llvm::json::Value> result = llvm::json::parse(metadata);
+    if (auto e = result.takeError())
+    {
+        SVFUtil::errs() << "Problem with parsing function signature JSON " << llvm::toString(std::move(e)) << "\n";
+        return signature;
     }
+    
+    llvm::json::Object *o;
+    if (!(o = result->getAsObject()))
+        return signature;
+
+    std::string returnTypeName;
+    if (auto s = o->getString("ReturnType"))
+        returnTypeName = s.value().str();
+    else
+        return signature;
+
+    llvm::json::Array *typeNames;
+    if (!(typeNames = o->getArray("TypeList")))
+        return signature;
+
+    signature.push_back(returnTypeName);
+    for (auto type : *typeNames) {
+        // SVFUtil::outs() << "baseClass: ";
+        std::string typeName;
+        if (auto s = type.getAsString())
+            typeName = s.value().str();
+        else
+            continue;
+        signature.push_back(typeName);
+    }
+
+    SVFUtil::outs() << "parseFunciont metadata=" << metadata << " list:";
+    for (auto e : signature)
+        SVFUtil::outs() << e << ", ";
+    SVFUtil::outs() << "\n";
+    
     return signature;
-    // if (metadata.find("ReturnType") == std::string::npos)
-    //     return;
-
-    // llvm::Expected<llvm::json::Value> result = llvm::json::parse(metadata);
-    // if (auto e = result.takeError())
-    // {
-    //     SVFUtil::errs() << "Problem with parsing Class Info JSON " << llvm::toString(std::move(e)) << "\n";
-    //     return;
-    // }
-    
-    // llvm::json::Object *o;
-    // if (!(o = result->getAsObject()))
-    //     return;
-
-    // std::string returnTypeName;
-    // if (auto s = o->getString("ReturnType"))
-    //     returnTypeName = s.value().str();
-    // else
-    //     return;
-
-    // llvm::json::Array *typeNames;
-    // if (!(typeNames = o->getArray("TypeList")))
-    //     return;
-
-    
 }
 
 void LLVMModuleSet::createSVFFunction(const Function* func)
@@ -905,33 +938,30 @@ void LLVMModuleSet::collectFunAnnotations(const Module* mod, Fun2AnnoMap &fun2An
         ConstantDataSequential *data = SVFUtil::dyn_cast<ConstantDataSequential>(annotateStr->getInitializer());
         if (data && data->isString())
         {
-            std::string annotation = data->getAsString().str();
+            std::string annotation = data->getAsCString().str();
             if (!annotation.empty())
                 fun2Anno[fun].push_back(annotation);
         }
     }
 }
 
-void LLVMModuleSet::parseClassInfoMetadata(llvm::StringRef annotation) {
-    // std::regex regex("ClassInfo=(.*)");
-    // std::smatch matches;
+TypeMetadata* LLVMModuleSet::getTypeMetadataForName(std::string& name) {
+    auto type = MetadataName2TypeMap.find(name);
+    // SVFUtil::outs() << className << "\n";
+    if (type == MetadataName2TypeMap.end())
+    {
+        // SVFUtil::outs() << "newType=" << className << "\n";
+        TypeMetadata* newType = new TypeMetadata(name);
+        svfModule->addType(newType);
+        type = MetadataName2TypeMap.insert(type, std::make_pair(name, newType));
+    }
+    svfModule->addType(type->second);
+    return type->second;
+}
 
-    // if(!std::regex_search(annotation, matches, regex)) {
-    //     // signature.push_back(matches[2].str());
-    //     // std::stringstream args(matches[1].str());
-    //     // std::string arg;
-    //     // while (getline(args, arg, ',')) {
-    //     //     signature.push_back(arg);
-    //     // }
-    //     return;
-    // }
-
-    SVFUtil::outs() << "parseClassInfoMetadata\n";
-    // SVFUtil::outs() << annotation.str() << "\n";
+void LLVMModuleSet::parseClassInfoMetadata(StructType* st, llvm::StringRef annotation) {
     std::string annotationWithoutNull = annotation.str();
     annotationWithoutNull.erase(std::find(annotationWithoutNull.begin(), annotationWithoutNull.end(), '\0'), annotationWithoutNull.end());
-
-    // SVFUtil::outs() << matches[1] << "\n";
 
     llvm::Expected<llvm::json::Value> result = llvm::json::parse(annotationWithoutNull);
     if (auto e = result.takeError())
@@ -950,44 +980,34 @@ void LLVMModuleSet::parseClassInfoMetadata(llvm::StringRef annotation) {
     else
         return;
 
-    // SVFUtil::outs() << "className=" << className << "\n";
-
     llvm::json::Array *baseClasses;
     if (!(baseClasses = o->getArray("BaseClasses")))
         return;
 
-    // SVFUtil::outs() << "baseClasses=";
-    // for (auto b : *baseClasses) {
-    //     SVFUtil::outs() << b.getAsString().value().str() << ","; 
-    // }
-    // SVFUtil::outs() << "\n";
-    auto type = MetadataName2TypeMap.find(className);
-    // SVFUtil::outs() << className << "\n";
-    if (type == MetadataName2TypeMap.end())
-    {
-        // SVFUtil::outs() << "newType=" << className << "\n";
-        type = MetadataName2TypeMap.insert(type, std::make_pair(className, new SVFMetadataType()));
-    }
+    TypeMetadata* type = getTypeMetadataForName(className);
         
     for (auto base : *baseClasses) {
-        // SVFUtil::outs() << "baseClass: ";
         std::string baseName;
         if (auto s = base.getAsString())
             baseName = s.value().str();
         else
             continue;
-            
-        auto baseType = MetadataName2TypeMap.find(baseName);
-        // SVFUtil::outs() << "baseName=" << baseName;
-        if (baseType == MetadataName2TypeMap.end())
-        {
-            // SVFUtil::outs() << "new";
-            baseType = MetadataName2TypeMap.insert(type, std::make_pair(baseName, new SVFMetadataType()));
-        }
-        // SVFUtil::outs() << "\n";
-        type->second->addSuperClass(baseType->second);
+        type->addSuperClass(getTypeMetadataForName(baseName));
     }
 
+}
+
+llvm::StringRef getStringFromConstant(Constant* c) {
+    GlobalVariable *globalStr = SVFUtil::dyn_cast<GlobalVariable>(c);
+
+    if (globalStr == nullptr || !globalStr->hasInitializer())
+        return "";
+
+    ConstantDataSequential *data = SVFUtil::dyn_cast<ConstantDataSequential>(globalStr->getInitializer());
+    if (data && data->isString())
+        return data->getAsCString();
+
+    return "";
 }
 
 void LLVMModuleSet::collectInheritanceInfo(const Module *mod) {
@@ -1005,20 +1025,19 @@ void LLVMModuleSet::collectInheritanceInfo(const Module *mod) {
         if (structAn == nullptr || structAn->getNumOperands() == 0)
             continue;
 
-        GlobalVariable *annotateStr = SVFUtil::dyn_cast<GlobalVariable>(structAn->getOperand(1));
-
-        if (annotateStr == nullptr || !annotateStr->hasInitializer())
-        {
+        llvm::StringRef structTypeName = getStringFromConstant(structAn->getOperand(0));
+        if (structTypeName.empty())
             continue;
-        }
+        StructType* st = StructType::getTypeByName(mod->getContext(), structTypeName);
+        if (!st)
+            SVFUtil::outs() << "Did not find Struct Type for: " << structTypeName.str() << "\n";
+        else
+            SVFUtil::outs() <<structTypeName.str() << "\n";
 
-        ConstantDataSequential *data = SVFUtil::dyn_cast<ConstantDataSequential>(annotateStr->getInitializer());
-        if (data && data->isString())
-        {
-            llvm::StringRef annotation = data->getAsString();
-            if (annotation.find("ClassName") != std::string::npos)
-                parseClassInfoMetadata(annotation);
-        }
+        llvm::StringRef annotation =
+            getStringFromConstant(structAn->getOperand(1));
+        if (annotation.find("ClassName") != std::string::npos)
+            parseClassInfoMetadata(st, annotation);
     }
 }
 

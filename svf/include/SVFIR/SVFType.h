@@ -531,14 +531,18 @@ enum AliasResult
     PartialAlias,
 };
 
-class SVFMetadataType {
-    Set<const SVFMetadataType *> superClasses;
+class TypeMetadata {
+    Set<const TypeMetadata *> superClasses;
+    std::string name;
 public:
-    void addSuperClass(const SVFMetadataType *superClass) {
+    TypeMetadata(std::string name) : name(name) {}
+
+    void addSuperClass(const TypeMetadata *superClass) {
         superClasses.insert(superClass);
     }
 
-    bool hasSuperClass(const SVFMetadataType *type) const {
+    bool hasSuperClass(const TypeMetadata* type) const
+    {
         bool contains = superClasses.count(type);
         if (!contains)
             for (auto superType : superClasses)
@@ -546,16 +550,62 @@ public:
                     return true;
         return contains;
     }
+
+    inline bool isOfType(const TypeMetadata* type) const
+    {
+        return type == this || hasSuperClass(type);
+    }
+
+    inline const std::string& getName() const
+    {
+        return name;
+    }
 };
 
-class ArgType {
-    SVFMetadataType *type;
-    std::vector<const ArgType *> templateTypes;
-    int pointer;
+class ArgTypeMetadata
+{
+    TypeMetadata* type;
+    std::vector<const ArgTypeMetadata*> templateTypes;
+    unsigned pointer;
+
 public:
-    bool isOfType(const ArgType *type);
+    ArgTypeMetadata(TypeMetadata* type, unsigned p = 0) : type(type), pointer(p) {}
+    bool isOfType(const ArgTypeMetadata* argType) const
+    {
+        return pointer == argType->pointer && type->isOfType(argType->type);
+    }
+    
+    std::string toString() const
+    {
+        return type->getName() + " P:" + std::to_string(pointer);
+    }
 };
 
+class FuncTypeMetadata
+{
+    std::vector<const ArgTypeMetadata*> signature;
+
+public:
+    inline void addToSignature(const ArgTypeMetadata* argType)
+    {
+        signature.emplace_back(argType);
+    }
+
+    bool isOfType(const FuncTypeMetadata& funcTypeMD) const
+    {
+        if (signature.size() != funcTypeMD.getSignature().size())
+            return false;
+        for (unsigned i = 0; i < signature.size(); ++i)
+            if (!signature[i]->isOfType(funcTypeMD.getSignature()[i]))
+                return false;
+        return true;
+    }
+
+    inline const std::vector<const ArgTypeMetadata*>& getSignature() const 
+    {
+        return signature;
+    }
+};
 
 } // End namespace SVF
 

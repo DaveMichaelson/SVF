@@ -50,7 +50,7 @@ public:
     typedef std::vector<SVFGlobalValue*> AliasSetType;
     typedef std::vector<SVFConstant*> ConstantType;
     typedef std::vector<SVFOtherValue*> OtherValueType;
-    typedef std::vector<const SVFMetadataType*> TypeSetType;
+    typedef std::vector<const TypeMetadata*> TypeSetType;
 
     /// Iterators type def
     typedef FunctionSetType::iterator iterator;
@@ -64,6 +64,7 @@ public:
     typedef OtherValueType::iterator ovalue_iterator;
     typedef OtherValueType::const_iterator const_ovalue_iterator;
     typedef Map<const llvm::Function*, SVFFunction*> LLVMFun2SVFFunMap;
+    typedef Map<std::string, llvm::StructType*> Name2StructTypeMap;
 
 private:
     static SVFModule* svfModule;
@@ -77,6 +78,7 @@ private:
     TypeSetType TypeSet;
     std::vector<llvm::Module *> modules;
     LLVMFun2SVFFunMap *LLVMFunc2SVFFunc;
+    Name2StructTypeMap Name2StructType;
 
     /// Constructors
     SVFModule() = default;
@@ -155,7 +157,7 @@ public:
     {
         OtherValueSet.push_back(ov);
     }
-    inline void addType(const SVFMetadataType *type) 
+    inline void addType(const TypeMetadata *type) 
     {
         TypeSet.push_back(type);
     }
@@ -266,6 +268,16 @@ public:
     inline const OtherValueType& getOtherValueSet() const
     {
         return OtherValueSet;
+    }
+
+    inline void addStructType(std::string name, llvm::StructType* st) {
+        Name2StructType[name] = st;
+    }
+
+    inline llvm::StructType* getStructType(std::string name) {
+        auto it = Name2StructType.find(name);
+        assert(it != Name2StructType.end() && "StructType not found!");
+        return it->second;
     }
 };
 

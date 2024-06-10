@@ -38,7 +38,6 @@ using namespace SVFUtil;
  */
 void CFLAlias::onTheFlyCallGraphSolve(const CallSiteToFunPtrMap& callsites, CallEdgeMap& newEdges)
 {
-    SVFUtil::outs() << "CFLAlias::onTheFlyCallGraphSolve\n";
     for(CallSiteToFunPtrMap::const_iterator iter = callsites.begin(), eiter = callsites.end(); iter!=eiter; ++iter)
     {
         const CallICFGNode* cs = iter->first;
