@@ -564,7 +564,17 @@ void PointerAnalysis::addIndirectCallGraphEdge(const CallICFGNode* cs,
         // callgraphNode->addCalledFunction(cs,callgraph->getOrInsertFunction(callee));
     }
 }
-/* 
+
+void printFuncType(const FuncTypeMetadata& funcType, std::string name)
+{
+    SVFUtil::outs() << name << ": ";
+    for (auto argType : funcType.getSignature())
+        SVFUtil::outs() << argType->toString() << ", ";
+    SVFUtil::outs() << "\n";
+}
+
+#define BASELINE 1
+#if BASELINE
 void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
                                              CallEdgeMap& newEdges)
 {
@@ -600,30 +610,11 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
     std::vector<std::pair<std::vector<llvm::Type*>, unsigned>> types;
     for (auto it = ty->param_begin(); it != ty->param_end(); ++it)
     {
-        if (llvm::PointerType* ptr = llvm::dyn_cast<llvm::PointerType>(*it))
-        {
-            const auto o_it =
-                compatible_types.find(ptr->getPointerElementType());
-            std::set<llvm::Type*> o_types;
-            if (o_it != compatible_types.end())
-            {
-                o_types = compatible_types.at(ptr->getPointerElementType());
-            }
-            std::vector<llvm::Type*> alter_types;
-            alter_types.emplace_back(ptr);
-            for (llvm::Type* type : o_types)
-            {
-                alter_types.emplace_back(
-                    llvm::PointerType::get(type, ptr->getAddressSpace()));
-            }
-            types.emplace_back(std::make_pair(alter_types, alter_types.size()));
-        }
-        else
-        {
-            std::vector<llvm::Type*> single = {*it};
-            types.emplace_back(std::make_pair(single, 1));
-        }
+        std::vector<llvm::Type*> single = {*it};
+        types.emplace_back(std::make_pair(single, 1));
     }
+
+    SVFUtil::outs() << "rfp::readfuncTypes::end\n";
 
     std::vector<std::vector<llvm::Type*>> cross_product;
 
@@ -647,23 +638,17 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
         // generate the cross product
         for (auto& type : types)
         {
+            type.second = type.second ? type.second : type.first.size();
             current.emplace_back(type.first[type.second - 1]);
             if (overflow)
             {
-                if (type.second-- == 0)
-                {
-                    type.second = type.first.size();
-                    overflow = true;
-                }
-                else
-                {
-                    overflow = false;
-                }
+                --type.second;
+                overflow = type.second == 0;
             }
         }
         // check the concrete function signature
         auto func_type = llvm::FunctionType::get(
-            call_inst->getFunctionType()->getReturnType(),
+            ty->getReturnType(),
             llvm::ArrayRef<llvm::Type*>(current), false);
         const auto& match = signature_to_func.find(func_type);
         if (match != signature_to_func.end())
@@ -679,15 +664,7 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
         }
     }
 }
- */
-void printFuncType(const FuncTypeMetadata& funcType, std::string name)
-{
-    SVFUtil::outs() << name << ": ";
-    for (auto argType : funcType.getSignature())
-        SVFUtil::outs() << argType->toString() << ", ";
-    SVFUtil::outs() << "\n";
-}
-
+#else
 void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap& newEdges)
 {
     const SVFCallInst* ci = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite());
@@ -700,6 +677,7 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap
         }
     }
 }
+#endif
 
 /*!
  * Resolve indirect calls
