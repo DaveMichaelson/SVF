@@ -564,8 +564,8 @@ void PointerAnalysis::addIndirectCallGraphEdge(const CallICFGNode* cs,
         // callgraphNode->addCalledFunction(cs,callgraph->getOrInsertFunction(callee));
     }
 }
-
-void PointerAnalysis::resolveFunctionPointerARA(const CallICFGNode* cs,
+/* 
+void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
                                              CallEdgeMap& newEdges)
 {
     SVFUtil::outs() << "resolveFunctionPointer ARA\n";
@@ -594,17 +594,6 @@ void PointerAnalysis::resolveFunctionPointerARA(const CallICFGNode* cs,
     {
         init_compatible_types();
     }
-
-    /*
-    // debug printing
-    for (const auto& [key, value] : compatible_types) {
-        logger.warn() << "Key: " << *key << ":";
-        for (const auto& elem : value) {
-            logger.warn() << " " << *elem;
-        }
-        logger.warn() << std::endl;
-    }
-    */
 
     // find all compatible types for this specific signature
     auto ty = call_inst->getFunctionType();
@@ -690,7 +679,7 @@ void PointerAnalysis::resolveFunctionPointerARA(const CallICFGNode* cs,
         }
     }
 }
-
+ */
 void printFuncType(const FuncTypeMetadata& funcType, std::string name)
 {
     SVFUtil::outs() << name << ": ";
@@ -703,6 +692,8 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap
 {
     const SVFCallInst* ci = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite());
     for (const SVFFunction* func : svfMod->getFunctionSet()) {
+        if (SVFUtil::isHeapAllocExtFunViaRet(func)) // prevent bug in SVF
+            continue;
         if (ci->getFuncTypeMD().isOfType(func->getFuncTypeMD()))
         {
             addIndirectCallGraphEdge(cs, func, newEdges);

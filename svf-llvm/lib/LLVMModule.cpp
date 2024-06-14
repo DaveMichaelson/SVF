@@ -1022,10 +1022,6 @@ void LLVMModuleSet::collectInheritanceInfo(const Module *mod) {
         if (structTypeName.empty())
             continue;
         StructType* st = StructType::getTypeByName(mod->getContext(), structTypeName);
-        if (!st)
-            SVFUtil::outs() << "Did not find Struct Type for: " << structTypeName.str() << "\n";
-        else
-            SVFUtil::outs() <<structTypeName.str() << "\n";
 
         llvm::StringRef annotation =
             getStringFromConstant(structAn->getOperand(1));
