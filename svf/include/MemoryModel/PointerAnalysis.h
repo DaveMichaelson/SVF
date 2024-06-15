@@ -413,9 +413,11 @@ public:
 
     void addIndirectCallGraphEdge(const CallICFGNode* cs,
                                   const SVFFunction* callee,
-                                  CallEdgeMap& newEdges);
+                                  CallEdgeMap& newEdges,
+                                  PTACallGraphEdge::AnalysisFlag af = PTACallGraphEdge::AnalysisFlag::None);
 
-    void resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap& newEdges);
+    void resolveFunctionPointerAraBaseline(const CallICFGNode* cs, CallEdgeMap& newEdges);
+    void resolveFunctionPointerImplementation(const CallICFGNode* cs, CallEdgeMap& newEdges);
 
     /// Resolve indirect call edges
     virtual void resolveIndCalls(const CallICFGNode* cs, const PointsTo& target, CallEdgeMap& newEdges);

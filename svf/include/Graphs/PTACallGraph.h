@@ -58,11 +58,16 @@ public:
         CallRetEdge,TDForkEdge,TDJoinEdge,HareParForEdge
     };
 
+    enum AnalysisFlag
+    {
+        None,Baseline,Implementation
+    };
 
 private:
     CallInstSet directCalls;
     CallInstSet indirectCalls;
     CallSiteID csId;
+    std::set<AnalysisFlag> flags;
 public:
     /// Constructor
     PTACallGraphEdge(PTACallGraphNode* s, PTACallGraphNode* d, CEDGEK kind, CallSiteID cs) :
@@ -72,6 +77,13 @@ public:
     /// Destructor
     virtual ~PTACallGraphEdge()
     {
+    }
+    inline const std::set<AnalysisFlag>& getAnalysisFlags() const
+    {
+        return flags;
+    }
+    inline void addAnalysisFlag(AnalysisFlag af) {
+        flags.insert(af);
     }
     /// Compute the unique edgeFlag value from edge kind and CallSiteID.
     static inline GEdgeFlag makeEdgeFlagWithInvokeID(GEdgeKind k, CallSiteID cs)

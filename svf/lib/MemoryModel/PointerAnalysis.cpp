@@ -548,7 +548,8 @@ bool is_call_to_intrinsic(const llvm::Instruction& inst)
 
 void PointerAnalysis::addIndirectCallGraphEdge(const CallICFGNode* cs,
                                                const SVFFunction* callee,
-                                               CallEdgeMap& newEdges)
+                                               CallEdgeMap& newEdges,
+                                               PTACallGraphEdge::AnalysisFlag af)
 {
     if (0 == getIndCallMap()[cs].count(callee))
     {
@@ -563,6 +564,15 @@ void PointerAnalysis::addIndirectCallGraphEdge(const CallICFGNode* cs,
         // callgraph->getOrInsertFunction(cs.getCaller());
         // callgraphNode->addCalledFunction(cs,callgraph->getOrInsertFunction(callee));
     }
+    if (af != PTACallGraphEdge::AnalysisFlag::None)
+    {
+        PTACallGraphNode* callerNode = ptaCallGraph->getCallGraphNode(cs->getCaller());
+        PTACallGraphNode* calleeNode = ptaCallGraph->getCallGraphNode(callee);
+        PTACallGraphEdge* edge = ptaCallGraph->getGraphEdge(callerNode, calleeNode, PTACallGraphEdge::CallRetEdge, 0);
+        assert(edge);
+        edge->addAnalysisFlag(af);
+    }
+
 }
 
 void printFuncType(const FuncTypeMetadata& funcType, std::string name)
@@ -573,13 +583,11 @@ void printFuncType(const FuncTypeMetadata& funcType, std::string name)
     SVFUtil::outs() << "\n";
 }
 
-#define BASELINE 1
-#if BASELINE
-void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
+void PointerAnalysis::resolveFunctionPointerAraBaseline(const CallICFGNode* cs,
                                              CallEdgeMap& newEdges)
 {
-    SVFUtil::outs() << "resolveFunctionPointer ARA\n";
-    SVFUtil::outs() << cs->getCallSite()->getLLVMInstruction() << "\n";
+    // SVFUtil::outs() << "resolveFunctionPointer ARA\n";
+    // SVFUtil::outs() << cs->getCallSite()->getLLVMInstruction() << "\n";
     const llvm::CallBase* call_inst = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite())->getCallBase();
     if (!call_inst) {
         SVFUtil::outs() << "No Call Instruction\n";
@@ -659,13 +667,13 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs,
                 // TODO actual link: cs (caller) mit func (callee)
                 SVFModule* mod = SVF::SVFModule::getSVFModule();
                 addIndirectCallGraphEdge(cs, mod->getSVFFunction(func),
-                                         newEdges);
+                                         newEdges, PTACallGraphEdge::AnalysisFlag::Baseline);
             }
         }
     }
 }
-#else
-void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap& newEdges)
+
+void PointerAnalysis::resolveFunctionPointerImplementation(const CallICFGNode* cs, CallEdgeMap& newEdges)
 {
     const SVFCallInst* ci = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite());
     for (const SVFFunction* func : svfMod->getFunctionSet()) {
@@ -673,11 +681,10 @@ void PointerAnalysis::resolveFunctionPointer(const CallICFGNode* cs, CallEdgeMap
             continue;
         if (ci->getFuncTypeMD().isOfType(func->getFuncTypeMD()))
         {
-            addIndirectCallGraphEdge(cs, func, newEdges);
+            addIndirectCallGraphEdge(cs, func, newEdges, PTACallGraphEdge::AnalysisFlag::Implementation);
         }
     }
 }
-#endif
 
 /*!
  * Resolve indirect calls
@@ -715,7 +722,8 @@ void PointerAnalysis::resolveIndCalls(const CallICFGNode* cs, const PointsTo& ta
     }
 
     if (target.empty()) {
-        resolveFunctionPointer(cs, newEdges);
+        resolveFunctionPointerImplementation(cs, newEdges);
+        resolveFunctionPointerAraBaseline(cs, newEdges);
     }
 }
 
@@ -778,7 +786,8 @@ void PointerAnalysis::connectVCallToVFns(const CallICFGNode* cs, const VFunSet &
     }
 
     if (vfns.empty()) {
-        resolveFunctionPointer(cs, newEdges);
+        resolveFunctionPointerImplementation(cs, newEdges);
+        resolveFunctionPointerAraBaseline(cs, newEdges);
     }
 }
 
