@@ -296,20 +296,23 @@ protected:
 
 
 
-		/**
-		 * Initialize a map of compatible types.
-		 *
-		 * That are types where their pointer can be used interchangeable.
-		 * Especially this is the case for C++ subclass pointer, that can be used interchangeable with their
-		 * superclasses.
-		 */
-		void init_compatible_types();
+    /**
+     * Initialize a map of compatible types.
+     *
+     * That are types where their pointer can be used interchangeable.
+     * Especially this is the case for C++ subclass pointer, that can be used interchangeable with their
+     * superclasses.
+     */
+    void init_compatible_types();
 
-		void get_atf_from_value(const llvm::Value& value,
-		                        std::vector<const llvm::Function*>& functions);
-		void get_atf_from_user(const llvm::User& user,
-		                       std::vector<const llvm::Function*>& functions);
-		std::vector<const llvm::Function*> get_address_taken_functions();
+    void get_atf_from_value(const llvm::Value& value,
+                            std::vector<const llvm::Function*>& functions);
+    void get_atf_from_user(const llvm::User& user,
+                            std::vector<const llvm::Function*>& functions);
+    std::vector<const llvm::Function*> get_address_taken_functions();
+
+    void compute_address_taken_svfFunctions();
+    std::vector<SVFFunction*> address_taken_svfFunctions;
 
 
 public:

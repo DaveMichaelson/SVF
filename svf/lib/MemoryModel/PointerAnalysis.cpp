@@ -517,6 +517,18 @@ PointerAnalysis::get_address_taken_functions()
     return ret;
 }
 
+void PointerAnalysis::compute_address_taken_svfFunctions() 
+{
+    static bool init = false;
+    if (init)
+        return;
+
+    for (const auto* fun : get_address_taken_functions())
+        address_taken_svfFunctions.push_back(svfMod->getSVFFunction(fun));
+    
+    init = true;
+}
+
 bool is_intrinsic(const llvm::Function& func)
 {
     if (func.getIntrinsicID() == llvm::Intrinsic::donothing ||
@@ -586,6 +598,7 @@ void printFuncType(const FuncTypeMetadata& funcType, std::string name)
 void PointerAnalysis::resolveFunctionPointerAraBaseline(const CallICFGNode* cs,
                                              CallEdgeMap& newEdges)
 {
+    return;
     // SVFUtil::outs() << "resolveFunctionPointer ARA\n";
     // SVFUtil::outs() << cs->getCallSite()->getLLVMInstruction() << "\n";
     const llvm::CallBase* call_inst = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite())->getCallBase();
@@ -593,7 +606,6 @@ void PointerAnalysis::resolveFunctionPointerAraBaseline(const CallICFGNode* cs,
         SVFUtil::outs() << "No Call Instruction\n";
         return;
     }
-    SVFUtil::outs() << "Call Instruction\n";
     if (is_call_to_intrinsic(*call_inst))
     {
         return;
@@ -621,8 +633,6 @@ void PointerAnalysis::resolveFunctionPointerAraBaseline(const CallICFGNode* cs,
         std::vector<llvm::Type*> single = {*it};
         types.emplace_back(std::make_pair(single, 1));
     }
-
-    SVFUtil::outs() << "rfp::readfuncTypes::end\n";
 
     std::vector<std::vector<llvm::Type*>> cross_product;
 
@@ -675,12 +685,25 @@ void PointerAnalysis::resolveFunctionPointerAraBaseline(const CallICFGNode* cs,
 
 void PointerAnalysis::resolveFunctionPointerImplementation(const CallICFGNode* cs, CallEdgeMap& newEdges)
 {
+    compute_address_taken_svfFunctions();
     const SVFCallInst* ci = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite());
-    for (const SVFFunction* func : svfMod->getFunctionSet()) {
+    const llvm::CallBase* call_inst = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite())->getCallBase();
+    if (!call_inst) {
+        SVFUtil::outs() << "No Call Instruction\n";
+        return;
+    }
+    if (is_call_to_intrinsic(*call_inst))
+        return;
+    for (const SVFFunction* func : address_taken_svfFunctions) {
         if (SVFUtil::isHeapAllocExtFunViaRet(func)) // prevent bug in SVF
             continue;
         if (ci->getFuncTypeMD().isOfType(func->getFuncTypeMD()))
         {
+            if (cs->getCaller()->getName() == "main") {
+                printFuncType(ci->getFuncTypeMD(), "match1");
+                printFuncType(func->getFuncTypeMD(), "match2");
+                SVFUtil::outs() << "-------------------------------------\n";
+            }
             addIndirectCallGraphEdge(cs, func, newEdges, PTACallGraphEdge::AnalysisFlag::Implementation);
         }
     }
