@@ -593,6 +593,8 @@ public:
 
     bool isOfType(const FuncTypeMetadata& funcTypeMD) const
     {
+        if (signature.size() == 0)
+            return false;
         if (signature.size() != funcTypeMD.getSignature().size())
             return false;
         for (unsigned i = 0; i < signature.size(); ++i)

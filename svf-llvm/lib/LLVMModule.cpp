@@ -279,8 +279,8 @@ void LLVMModuleSet::parseFunctionSignature(SVFCallInst *svfCallInstr, const Call
     }
 }
 
-void LLVMModuleSet::parseFunctionSignature(SVFFunction *svfFunc) {
-    for (auto i : svfFunc->getAnnotations()) {
+void LLVMModuleSet::parseFunctionSignature(SVFFunction *svfFunc, std::vector<std::string> annotations) {
+    for (auto i : annotations) {
         std::vector<std::string> signature = parseFunctionSignature(i);
         if(!signature.empty()) {
             svfFunc->setSignature(signature);
@@ -341,9 +341,8 @@ void LLVMModuleSet::createSVFFunction(const Function* func)
     if (ExtFun2Annotations.find(func) != ExtFun2Annotations.end()) {
         svfFunc->setAnnotations(ExtFun2Annotations[func]);
     } else if (Fun2Annotations.find(func) != Fun2Annotations.end()) {
-        svfFunc->setAnnotations(Fun2Annotations[func]);
+        parseFunctionSignature(svfFunc, Fun2Annotations[func]);
     }
-    parseFunctionSignature(svfFunc);
     addFunctionMap(func, svfFunc);
 
     for (const Argument& arg : func->args())

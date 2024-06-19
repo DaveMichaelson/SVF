@@ -397,7 +397,7 @@ private:
     void removeUnusedExtAPIs();
 
     void parseFunctionSignature(SVFInstruction *call, const CallBase *callBase);
-    void parseFunctionSignature(SVFFunction *svfFunc);
+    void parseFunctionSignature(SVFFunction *svfFunc, std::vector<std::string> annotations);
     void parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase* call);
     std::vector<std::string> parseFunctionSignature(std::string metadata);
     void parseClassInfoMetadata(StructType* st, llvm::StringRef annotation);
