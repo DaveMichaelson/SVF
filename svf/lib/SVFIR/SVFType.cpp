@@ -54,4 +54,16 @@ void SVFOtherType::print(std::ostream& os) const
     os << repr;
 }
 
+bool FuncTypeMetadata::isOfType(const FuncTypeMetadata& funcTypeMD) const
+{
+    if (signature.size() == 0)
+        return false;
+    if (signature.size() != funcTypeMD.getSignature().size())
+        return false;
+    for (unsigned i = 0; i < signature.size(); ++i)
+        if (!signature[i]->isOfType(funcTypeMD.getSignature()[i]))
+            return false;
+    return true;
+}
+
 } // namespace SVF

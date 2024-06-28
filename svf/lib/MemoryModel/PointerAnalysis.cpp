@@ -596,9 +596,9 @@ void printFuncType(const FuncTypeMetadata& funcType, std::string name)
 }
 
 void PointerAnalysis::resolveFunctionPointerAraBaseline(const CallICFGNode* cs,
-                                             CallEdgeMap& newEdges)
+                                             CallEdgeMap& newEdges,
+                                             PTACallGraphEdge::AnalysisFlag af)
 {
-    return;
     // SVFUtil::outs() << "resolveFunctionPointer ARA\n";
     // SVFUtil::outs() << cs->getCallSite()->getLLVMInstruction() << "\n";
     const llvm::CallBase* call_inst = SVFUtil::dyn_cast<SVFCallInst>(cs->getCallSite())->getCallBase();
@@ -677,7 +677,7 @@ void PointerAnalysis::resolveFunctionPointerAraBaseline(const CallICFGNode* cs,
                 // TODO actual link: cs (caller) mit func (callee)
                 SVFModule* mod = SVF::SVFModule::getSVFModule();
                 addIndirectCallGraphEdge(cs, mod->getSVFFunction(func),
-                                         newEdges, PTACallGraphEdge::AnalysisFlag::Baseline);
+                                         newEdges, af);
             }
         }
     }
@@ -694,19 +694,18 @@ void PointerAnalysis::resolveFunctionPointerImplementation(const CallICFGNode* c
     }
     if (is_call_to_intrinsic(*call_inst))
         return;
+    bool foundEdge = false;
     for (const SVFFunction* func : address_taken_svfFunctions) {
         if (SVFUtil::isHeapAllocExtFunViaRet(func)) // prevent bug in SVF
             continue;
         if (ci->getFuncTypeMD().isOfType(func->getFuncTypeMD()))
         {
-            if (cs->getCaller()->getName() == "main") {
-                printFuncType(ci->getFuncTypeMD(), "match1");
-                printFuncType(func->getFuncTypeMD(), "match2");
-                SVFUtil::outs() << "-------------------------------------\n";
-            }
+            foundEdge = true;
             addIndirectCallGraphEdge(cs, func, newEdges, PTACallGraphEdge::AnalysisFlag::Implementation);
         }
     }
+    if (!foundEdge)
+        resolveFunctionPointerAraBaseline(cs, newEdges, PTACallGraphEdge::AnalysisFlag::Implementation);
 }
 
 /*!

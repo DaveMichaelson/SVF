@@ -259,6 +259,27 @@ ArgTypeMetadata* LLVMModuleSet::parseArgType(std::string s) {
     return argType;
 }
 
+ArgTypeMetadata* LLVMModuleSet::parseDefaultConstructor(std::string s)
+{
+    static std::regex regex("_ZN\\d+(.+)C2Ev");
+    std::smatch matches;
+    if (!std::regex_search(s, matches, regex))
+    {
+        return nullptr;
+    }
+    return new ArgTypeMetadata(getTypeMetadataForName(matches[1].str()));
+}
+
+void LLVMModuleSet::computeFuncType(SVFFunction *svfFunc, const Function* func)
+{
+    if (Fun2Annotations.find(func) != Fun2Annotations.end())
+        if (parseFunctionSignature(svfFunc, Fun2Annotations[func]))
+            return;
+    ArgTypeMetadata* type = parseDefaultConstructor(func->getName().str());
+    if (type)
+        svfFunc->getFuncTypeMD().addToSignature(type); 
+}
+
 void LLVMModuleSet::parseFuncType(FuncTypeMetadata& funcType, const std::vector<std::string>& signature) {
     for (std::string argString : signature) {
         funcType.addToSignature(parseArgType(argString));
@@ -279,15 +300,16 @@ void LLVMModuleSet::parseFunctionSignature(SVFCallInst *svfCallInstr, const Call
     }
 }
 
-void LLVMModuleSet::parseFunctionSignature(SVFFunction *svfFunc, std::vector<std::string> annotations) {
+bool LLVMModuleSet::parseFunctionSignature(SVFFunction *svfFunc, std::vector<std::string> annotations) {
     for (auto i : annotations) {
         std::vector<std::string> signature = parseFunctionSignature(i);
         if(!signature.empty()) {
             svfFunc->setSignature(signature);
             parseFuncType(svfFunc->getFuncTypeMD(), signature);
-            return;
+            return true;
         }
     }
+    return false;
 }
 
 std::vector<std::string> LLVMModuleSet::parseFunctionSignature(std::string metadata) {
@@ -340,9 +362,8 @@ void LLVMModuleSet::createSVFFunction(const Function* func)
     svfModule->addFunctionSet(svfFunc);
     if (ExtFun2Annotations.find(func) != ExtFun2Annotations.end()) {
         svfFunc->setAnnotations(ExtFun2Annotations[func]);
-    } else if (Fun2Annotations.find(func) != Fun2Annotations.end()) {
-        parseFunctionSignature(svfFunc, Fun2Annotations[func]);
-    }
+    } 
+    computeFuncType(svfFunc, func);
     addFunctionMap(func, svfFunc);
 
     for (const Argument& arg : func->args())
@@ -938,7 +959,7 @@ void LLVMModuleSet::collectFunAnnotations(const Module* mod, Fun2AnnoMap &fun2An
     }
 }
 
-TypeMetadata* LLVMModuleSet::getTypeMetadataForName(std::string& name) {
+TypeMetadata* LLVMModuleSet::getTypeMetadataForName(const std::string& name) {
     auto type = MetadataName2TypeMap.find(name);
     // SVFUtil::outs() << className << "\n";
     if (type == MetadataName2TypeMap.end())

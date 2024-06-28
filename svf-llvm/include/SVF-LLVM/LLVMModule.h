@@ -397,13 +397,15 @@ private:
     void removeUnusedExtAPIs();
 
     void parseFunctionSignature(SVFInstruction *call, const CallBase *callBase);
-    void parseFunctionSignature(SVFFunction *svfFunc, std::vector<std::string> annotations);
+    bool parseFunctionSignature(SVFFunction *svfFunc, std::vector<std::string> annotations);
     void parseFunctionSignature(SVFCallInst *svfCallInstr, const CallBase* call);
     std::vector<std::string> parseFunctionSignature(std::string metadata);
     void parseClassInfoMetadata(StructType* st, llvm::StringRef annotation);
-    TypeMetadata* getTypeMetadataForName(std::string& name);
+    TypeMetadata* getTypeMetadataForName(const std::string& name);
     ArgTypeMetadata* parseArgType(std::string s);
     void parseFuncType(FuncTypeMetadata& funcType, const std::vector<std::string>& signature);
+    ArgTypeMetadata* parseDefaultConstructor(std::string s);
+    void computeFuncType(SVFFunction *svfFunc, const Function* func);
 };
 
 } // End namespace SVF

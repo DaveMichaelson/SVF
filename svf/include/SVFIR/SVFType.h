@@ -591,21 +591,15 @@ public:
         signature.emplace_back(argType);
     }
 
-    bool isOfType(const FuncTypeMetadata& funcTypeMD) const
-    {
-        if (signature.size() == 0)
-            return false;
-        if (signature.size() != funcTypeMD.getSignature().size())
-            return false;
-        for (unsigned i = 0; i < signature.size(); ++i)
-            if (!signature[i]->isOfType(funcTypeMD.getSignature()[i]))
-                return false;
-        return true;
-    }
+    bool isOfType(const FuncTypeMetadata& funcTypeMD) const;
 
     inline const std::vector<const ArgTypeMetadata*>& getSignature() const 
     {
         return signature;
+    }
+
+    inline bool isEmpty() {
+        return signature.empty();
     }
 };
 

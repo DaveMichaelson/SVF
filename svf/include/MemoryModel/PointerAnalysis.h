@@ -419,7 +419,7 @@ public:
                                   CallEdgeMap& newEdges,
                                   PTACallGraphEdge::AnalysisFlag af = PTACallGraphEdge::AnalysisFlag::None);
 
-    void resolveFunctionPointerAraBaseline(const CallICFGNode* cs, CallEdgeMap& newEdges);
+    void resolveFunctionPointerAraBaseline(const CallICFGNode* cs, CallEdgeMap& newEdges, PTACallGraphEdge::AnalysisFlag af = PTACallGraphEdge::AnalysisFlag::Baseline);
     void resolveFunctionPointerImplementation(const CallICFGNode* cs, CallEdgeMap& newEdges);
 
     /// Resolve indirect call edges
