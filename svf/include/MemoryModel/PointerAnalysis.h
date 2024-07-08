@@ -314,6 +314,10 @@ protected:
     void compute_address_taken_svfFunctions();
     std::vector<SVFFunction*> address_taken_svfFunctions;
 
+    void initSignatureToFunc();
+    void matchFunctionSignaturesAndCreateEdges(
+        const CallICFGNode* cs, CallEdgeMap& newEdges,
+        PTACallGraphEdge::AnalysisFlag af, llvm::FunctionType* func_type);
 
 public:
     /// Dump the statistics

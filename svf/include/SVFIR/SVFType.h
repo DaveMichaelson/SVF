@@ -572,7 +572,11 @@ public:
     ArgTypeMetadata(TypeMetadata* type, unsigned p = 0) : type(type), pointer(p) {}
     bool isOfType(const ArgTypeMetadata* argType) const
     {
-        return pointer == argType->pointer && type->isOfType(argType->type);
+        bool isPEqual = pointer == argType->pointer;
+        if (pointer) {
+            return isPEqual && type->isOfType(argType->type);
+        }
+        return isPEqual && type == argType->type;
     }
     
     std::string toString() const
@@ -598,7 +602,7 @@ public:
         return signature;
     }
 
-    inline bool isEmpty() {
+    inline bool isEmpty() const {
         return signature.empty();
     }
 };
