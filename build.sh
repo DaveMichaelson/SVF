@@ -6,6 +6,8 @@
 # Dependencies include: build-essential libncurses5 libncurses-dev cmake zlib1g-dev
 set -e # exit on first error
 
+LLVM_DIR=../llvm-build
+
 jobs=8
 
 #########
